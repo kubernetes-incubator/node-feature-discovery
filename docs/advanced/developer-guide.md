@@ -257,6 +257,72 @@ stand-alone directly with `docker run`. See the
 [template spec](https://github.com/kubernetes-sigs/node-feature-discovery/blob/{{site.release}}/nfd-worker-daemonset.yaml.template)
 for up-to-date information about the required volume mounts.
 
+
+### NFD-Topology-Updater
+
+In order to run nfd-topology as a "stand-alone" container against your
+standalone nfd-master you need to run them in the same network namespace:
+
+```bash
+$ docker run --rm --network=container:nfd-test ${NFD_CONTAINER_IMAGE} nfd-topology-updater
+2019/02/01 14:48:56 Node Feature Discovery Topology Updater <NFD_VERSION>
+...
+```
+
+If you just want to try out feature discovery without connecting to nfd-master,
+pass the `--no-publish` flag to nfd-topology-updater.
+
+Command line flags of nfd-topology-updater:
+
+```bash
+$ docker run --rm ${NFD_CONTAINER_IMAGE} nfd-topology-updater --help
+...
+nfd-topology-updater.
+
+  Usage:
+  nfd-topology-updater [--no-publish][--oneshot | --sleep-interval=<seconds>][--server=<server>]
+                       [--server-name-override=<name>] [--ca-file=<path>] [--cert-file=<path>]
+                       [--key-file=<path>][--container-runtime=<runtime>] [--podresources-socket=<path>]
+                       [--watch-namespace=<namespace>] [--sysfs=<mountpoint>] [--kubelet-config-file=<path>]
+  nfd-topology-updater -h | --help
+  nfd-topology-updater --version
+
+  Options:
+  -h --help                       Show this screen.
+  --version                       Output version and exit.
+  --ca-file=<path>                Root certificate for verifying connections
+                                  [Default: ]
+  --cert-file=<path>              Certificate used for authenticating connections
+                                  [Default: ]
+  --key-file=<path>               Private key matching --cert-file
+                                  [Default: ]
+  --server=<server>               NFD server address to connect to.
+                                  [Default: localhost:8080]
+  --server-name-override=<name>   Name (CN) expect from server certificate, useful
+                                  in testing
+                                  [Default: ]
+  --no-publish                    Do not publish discovered features to the
+                                  cluster-local Kubernetes API server.
+  --oneshot                       Update once and exit.
+  --sleep-interval=<seconds>      Time to sleep between re-labeling. Non-positive
+                                  value implies no re-labeling (i.e. infinite
+                                  sleep). [Default: 60s]
+  --watch-namespace=<namespace>   Namespace to watch pods for. Use "" for all namespaces.
+  --sysfs=<mountpoint>            Mount point of the sysfs.
+                                  [Default: /host]
+  --kubelet-config-file=<path>    Kubelet config file path.
+                                  [Default: /podresources/config.yaml]
+  --podresources-socket=<path>    Pod Resource Socket path to use.
+                                  [Default: /podresources/kubelet.sock]
+```
+
+**NOTE** Some feature sources need certain directories and/or files from the
+host mounted inside the NFD container. Thus, you need to provide Docker with the
+correct `--volume` options in order for them to work correctly when run
+stand-alone directly with `docker run`. See the
+[template spec](https://github.com/kubernetes-sigs/node-feature-discovery/blob/{{ site.release }}/nfd-worker-daemonset.yaml.template)
+for up-to-date information about the required volume mounts.
+
 ## Documentation
 
 All documentation resides under the

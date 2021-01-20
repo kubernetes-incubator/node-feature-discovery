@@ -96,25 +96,27 @@ The template specs provided in the repo can be used directly:
 ```bash
 kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/node-feature-discovery/{{ site.release }}/nfd-master.yaml.template
 kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/node-feature-discovery/{{ site.release }}/nfd-worker-daemonset.yaml.template
+kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/node-feature-discovery/{{ site.release }}/nfd-topology-updater-daemonset.yaml.template
 ```
 
 This will required RBAC rules and deploy nfd-master (as a deployment) and
-nfd-worker (as a daemonset) in the `node-feature-discovery` namespace.
+nfd-worker and nfd-topology-updater (as daemonset) in the `node-feature-discovery` namespace.
 
 Alternatively you can download the templates and customize the deployment
 manually. For example, to deploy the [minimal](#minimal) image.
 
 #### Master-worker pod
 
-You can also run nfd-master and nfd-worker inside the same pod
+You can also run nfd-master, nfd-worker and nfd-topology-updater inside the same pod
 
 ```bash
 kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/node-feature-discovery/{{ site.release }}/nfd-daemonset-combined.yaml.template
 ```
 
-This creates a DaemonSet runs both nfd-worker and nfd-master in the same Pod.
+This creates a DaemonSet runs nfd-worker, nfd-master and nfd-topology-updater in the same Pod.
 In this case no nfd-master is run on the master node(s), but, the worker nodes
 are able to label themselves which may be desirable e.g. in single-node setups.
+Also, NodeResourceTopology CRD instances are created corresponding to the worker nodes.
 
 #### Worker one-shot
 
@@ -128,7 +130,24 @@ curl -fs https://raw.githubusercontent.com/kubernetes-sigs/node-feature-discover
     kubectl apply -f -
 ```
 
-The example above launces as many jobs as there are non-master nodes. Note that
+The example above launches as many jobs as there are non-master nodes. Note that
+this approach does not guarantee running once on every node. For example,
+tainted, non-ready nodes or some other reasons in Job scheduling may cause some
+node(s) will run extra job instance(s) to satisfy the request.
+
+#### Topology Updater One-shot
+
+NFD Topology Updater can alternatively be configured as a one-shot job.
+The Job template may be used to achieve this:
+
+```bash
+NUM_NODES=$(kubectl get no -o jsonpath='{.items[*].metadata.name}' | wc -w)
+curl -fs https://raw.githubusercontent.com/kubernetes-sigs/node-feature-discovery/{{ site.release }}/nfd-topology-updater-job.yaml.template | \
+    sed s"/NUM_NODES/$NUM_NODES/" | \
+    kubectl apply -f -
+```
+
+The example above launches as many jobs as there are non-master nodes. Note that
 this approach does not guarantee running once on every node. For example,
 tainted, non-ready nodes or some other reasons in Job scheduling may cause some
 node(s) will run extra job instance(s) to satisfy the request.
@@ -285,7 +304,7 @@ labels. The provided template will configure these for you.
 
 NFD-Worker is preferably run as a Kubernetes DaemonSet. This assures
 re-labeling on regular intervals capturing changes in the system configuration
-and mames sure that new nodes are labeled as they are added to the cluster.
+and makes sure that new nodes are labeled as they are added to the cluster.
 Worker connects to the nfd-master service to advertise hardware features.
 
 When run as a daemonset, nodes are re-labeled at an interval specified using
@@ -294,6 +313,22 @@ the `-sleep-interval` option. In the
 the default interval is set to 60s which is also the default when no
 `-sleep-interval` is specified. Also, the configuration file is re-read on
 each iteration providing a simple mechanism of run-time reconfiguration.
+
+### NFD-Topology-Updater
+
+NFD-Worker is preferably run as a Kubernetes DaemonSet. This assures
+re-examination (and CRD updation) on regular intervals capturing changes in the
+allocated resources and hence the allocatable resources on a per zone basis. It
+makes sure that more CRD instances are created as new nodes get added to the
+cluster. Topology-Updater connects to the nfd-master service to creates CRD
+intances corresponding to nodes.
+
+When run as a daemonset, nodes are re-examined for the allocated resources
+(to determine the information of the allocatable resources on a per zone basis
+where a zone can be a NUMA node) at an interval specified using the
+`-sleep-interval` option. In the
+[template](https://github.com/kubernetes-sigs/node-feature-discovery/blob/{{ site.release }}/nfd-topology-daemonset.yaml.template#L37) the default interval is set to 60s which is also the default when no -sleep-interval is specified.
+
 
 ### Communication security with TLS
 
