@@ -28,6 +28,7 @@ import (
 	topology "sigs.k8s.io/node-feature-discovery/pkg/nfd-topology-updater"
 	"sigs.k8s.io/node-feature-discovery/pkg/podres"
 	"sigs.k8s.io/node-feature-discovery/pkg/resourcemonitor"
+	"sigs.k8s.io/node-feature-discovery/pkg/topologypolicy"
 	"sigs.k8s.io/node-feature-discovery/pkg/version"
 )
 
@@ -51,7 +52,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("error getting topology Manager Policy: %v", err)
 	}
-	tmPolicy := klConfig.TopologyManagerPolicy
+	tmPolicy := string(topologypolicy.DetectTopologyPolicy(klConfig.TopologyManagerPolicy, klConfig.TopologyManagerScope))
 	log.Printf("Detected kubelet Topology Manager policy %q", tmPolicy)
 
 	podResClient, err := podres.GetPodResClient(resourcemonitorArgs.PodResourceSocketPath)
