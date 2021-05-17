@@ -94,9 +94,9 @@ to the metadata of NodeFeatureDiscovery object above.
 The template specs provided in the repo can be used directly:
 
 ```bash
-kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/node-feature-discovery/{{ site.release }}/nfd-master.yaml.template
-kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/node-feature-discovery/{{ site.release }}/nfd-worker-daemonset.yaml.template
-kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/node-feature-discovery/{{ site.release }}/nfd-topology-updater-daemonset.yaml.template
+kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/node-feature-discovery/{{ site.release }}/manifests/nfd-master.yaml.template
+kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/node-feature-discovery/{{ site.release }}/manifests/nfd-worker-daemonset.yaml.template
+kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/node-feature-discovery/{{ site.release }}/manifests/nfd-topology-updater-daemonset.yaml.template
 ```
 
 This will required RBAC rules and deploy nfd-master (as a deployment) and
@@ -110,7 +110,7 @@ manually. For example, to deploy the [minimal](#minimal) image.
 You can also run nfd-master, nfd-worker and nfd-topology-updater inside the same pod
 
 ```bash
-kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/node-feature-discovery/{{ site.release }}/nfd-daemonset-combined.yaml.template
+kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/node-feature-discovery/{{ site.release }}/manifests/nfd-daemonset-combined.yaml.template
 ```
 
 This creates a DaemonSet runs nfd-worker, nfd-master and nfd-topology-updater in the same Pod.
@@ -125,7 +125,7 @@ The Job template may be used to achieve this:
 
 ```bash
 NUM_NODES=$(kubectl get no -o jsonpath='{.items[*].metadata.name}' | wc -w)
-curl -fs https://raw.githubusercontent.com/kubernetes-sigs/node-feature-discovery/{{ site.release }}/nfd-worker-job.yaml.template | \
+curl -fs https://raw.githubusercontent.com/kubernetes-sigs/node-feature-discovery/{{ site.release }}/manifests/nfd-worker-job.yaml.template | \
     sed s"/NUM_NODES/$NUM_NODES/" | \
     kubectl apply -f -
 ```
@@ -309,7 +309,7 @@ Worker connects to the nfd-master service to advertise hardware features.
 
 When run as a daemonset, nodes are re-labeled at an interval specified using
 the `-sleep-interval` option. In the
-[template](https://github.com/kubernetes-sigs/node-feature-discovery/blob/{{site.release}}/nfd-worker-daemonset.yaml.template#L26)
+[template](https://github.com/kubernetes-sigs/node-feature-discovery/blob/{{site.release}}/manifests/nfd-worker-daemonset.yaml.template#L26)
 the default interval is set to 60s which is also the default when no
 `-sleep-interval` is specified. Also, the configuration file is re-read on
 each iteration providing a simple mechanism of run-time reconfiguration.
@@ -327,7 +327,7 @@ When run as a daemonset, nodes are re-examined for the allocated resources
 (to determine the information of the allocatable resources on a per zone basis
 where a zone can be a NUMA node) at an interval specified using the
 `-sleep-interval` option. In the
-[template](https://github.com/kubernetes-sigs/node-feature-discovery/blob/{{ site.release }}/nfd-topology-daemonset.yaml.template#L37) the default interval is set to 60s which is also the default when no -sleep-interval is specified.
+[template](https://github.com/kubernetes-sigs/node-feature-discovery/blob/{{ site.release }}/manifests/nfd-topology-daemonset.yaml.template#L37) the default interval is set to 60s which is also the default when no -sleep-interval is specified.
 
 
 ### Communication security with TLS
@@ -459,8 +459,8 @@ Beware that this will also delete the namespace that NFD is running in. For
 example:
 
 ```bash
-kubectl delete -f https://raw.githubusercontent.com/kubernetes-sigs/node-feature-discovery/{{ site.release }}/nfd-worker-daemonset.yaml.template
-kubectl delete -f https://raw.githubusercontent.com/kubernetes-sigs/node-feature-discovery/{{ site.release }}/nfd-master.yaml.template
+kubectl delete -f https://raw.githubusercontent.com/kubernetes-sigs/node-feature-discovery/{{ site.release }}/manifests/nfd-worker-daemonset.yaml.template
+kubectl delete -f https://raw.githubusercontent.com/kubernetes-sigs/node-feature-discovery/{{ site.release }}/manifests/nfd-master.yaml.template
 ```
 
 Alternatively you can delete create objects one-by-one, depending on the type
@@ -482,9 +482,9 @@ NFD-Master has a special `-prune` command line flag for removing all
 nfd-related node labels, annotations and extended resources from the cluster.
 
 ```bash
-kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/node-feature-discovery/{{ site.release }}/nfd-prune.yaml.template
+kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/node-feature-discovery/{{ site.release }}/manifests/nfd-prune.yaml.template
 kubectl -n node-feature-discovery wait job.batch/nfd-prune --for=condition=complete && \
-    kubectl delete -f kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/node-feature-discovery/{{ site.release }}/nfd-prune.yaml.template
+    kubectl delete -f kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/node-feature-discovery/{{ site.release }}/manifests/nfd-prune.yaml.template
 ```
 
 **NOTE:** You must run prune before removing the RBAC rules (serviceaccount,
