@@ -8,12 +8,12 @@ require (
 	github.com/ghodss/yaml v1.0.0
 	github.com/golang/protobuf v1.4.3
 	github.com/google/go-cmp v0.5.2
-	github.com/gorilla/context v1.1.1 // indirect
 	github.com/jaypipes/ghw v0.8.0
 	github.com/k8stopologyawareschedwg/noderesourcetopology-api v0.0.8
 	github.com/klauspost/cpuid/v2 v2.0.6
 	github.com/onsi/ginkgo v1.11.0
 	github.com/onsi/gomega v1.7.0
+	github.com/pkg/errors v0.9.1
 	github.com/smartystreets/assertions v1.2.0
 	github.com/smartystreets/goconvey v1.6.4
 	github.com/stretchr/testify v1.6.1

@@ -32,6 +32,7 @@ spec:
           command:
             - "nfd-topology-updater"
           args:
+            - "--obtain-kubelet-config=kubelet-config-file"
             - "--kubelet-config-file=/podresources/config.yaml"
             - "--podresources-socket=/podresources/kubelet.sock"
             - "--sleep-interval=3s"

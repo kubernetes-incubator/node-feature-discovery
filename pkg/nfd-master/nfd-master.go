@@ -462,6 +462,28 @@ func (m *nfdMaster) UpdateNodeTopology(c context.Context, r *topologypb.NodeTopo
 			return &topologypb.NodeTopologyResponse{}, fmt.Errorf("request authorization failed: cert valid for '%s', requested node name '%s'", cn, r.NodeName)
 		}
 	}
+
+	// We expect the data to be found on r.TopologyPolicies[0] or not to be found at all
+	for idx, policy := range r.TopologyPolicies {
+		if len(policy) != 0 && idx != 0 {
+			return &topologypb.NodeTopologyResponse{}, fmt.Errorf("Topology Policy error: policy %v not expected to be found at index %v", policy, idx)
+		}
+	}
+	if len(r.TopologyPolicies[0]) == 0 {
+		stdoutLogger.Printf("Warning: Using configz-endpoint in order to get Kubelet configuration, consider to be unstable")
+		cli, err := m.apihelper.GetClient()
+		if err != nil {
+			stderrLogger.Printf("%s", err.Error())
+			return &topologypb.NodeTopologyResponse{}, err
+		}
+		kc, err := m.apihelper.GetKubeletConfig(cli, r.NodeName)
+		if err != nil {
+			stderrLogger.Printf("failed to get Kubelet config: %s", err.Error())
+			return &topologypb.NodeTopologyResponse{}, err
+		}
+		r.TopologyPolicies[0] = kc.TopologyManagerPolicy
+	}
+
 	stdoutLogger.Printf("REQUEST Node: %s NFD-version: %s Topology Policy: %s Zones: %v", r.NodeName, r.NfdVersion, r.TopologyPolicies, dumpobject.DumpObject(r.Zones))
 
 	if !m.args.NoPublish {

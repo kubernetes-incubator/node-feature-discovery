@@ -21,6 +21,7 @@ rules:
       - ""
     resources:
       - nodes
+      - nodes/proxy
     # when using command line flag --resource-labels to create extended resources
     # you will need to uncomment "- nodes/status"
     # - nodes/status
@@ -103,6 +104,7 @@ spec:
           command:
             - "nfd-topology-updater"
           args:
+            - "--obtain-kubelet-config=kubelet-config-file"
             - "--kubelet-config-file=/podresources/config.yaml"
             - "--podresources-socket=/podresources/kubelet.sock"
             - "--sleep-interval=3s"

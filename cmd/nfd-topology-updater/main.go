@@ -36,6 +36,12 @@ const (
 	ProgramName = "nfd-topology-updater"
 )
 
+// Options to obtain Kubelet config file
+const (
+	KubeletFile = "kubelet-config-file"
+	Configz     = "configz-endpoint"
+)
+
 func main() {
 	// Assert that the version is known
 	if version.Undefined() {
@@ -47,12 +53,15 @@ func main() {
 		log.Fatalf("failed to parse command line: %v", err)
 	}
 
-	klConfig, err := kubeconf.GetKubeletConfigFromLocalFile(resourcemonitorArgs.KubeletConfigFile)
-	if err != nil {
-		log.Fatalf("error getting topology Manager Policy: %v", err)
-	}
-	tmPolicy := klConfig.TopologyManagerPolicy
-	log.Printf("Detected kubelet Topology Manager policy %q", tmPolicy)
+	var tmPolicy string
+	if resourcemonitorArgs.KubeletConfigObtainOpt == KubeletFile {
+		klConfig, err := kubeconf.GetKubeletConfigFromLocalFile(resourcemonitorArgs.KubeletConfigFile)
+		if err != nil {
+			log.Fatalf("error getting topology Manager Policy: %v", err)
+		}
+		tmPolicy = klConfig.TopologyManagerPolicy
+		log.Printf("Detected kubelet Topology Manager policy %q", tmPolicy)
+	} // Otherwise get TopologyManagerPolicy from configz-endpoint
 
 	podResClient, err := podres.GetPodResClient(resourcemonitorArgs.PodResourceSocketPath)
 	if err != nil {
@@ -125,38 +134,41 @@ func argsParse(argv []string) (topology.Args, resourcemonitor.Args, error) {
   %s [--no-publish] [--oneshot | --sleep-interval=<seconds>] [--server=<server>]
 	   [--server-name-override=<name>] [--ca-file=<path>] [--cert-file=<path>]
 		 [--key-file=<path>] [--container-runtime=<runtime>] [--podresources-socket=<path>]
-		 [--watch-namespace=<namespace>] [--sysfs=<mountpoint>] [--kubelet-config-file=<path>]
+		 [--watch-namespace=<namespace>] [--sysfs=<mountpoint>] [--obtain-kubelet-config=<option>] [--kubelet-config-file=<path>]
 
   %s -h | --help
   %s --version
 
   Options:
-  -h --help                       Show this screen.
-  --version                       Output version and exit.
-  --ca-file=<path>                Root certificate for verifying connections
-                                  [Default: ]
-  --cert-file=<path>              Certificate used for authenticating connections
-                                  [Default: ]
-  --key-file=<path>               Private key matching --cert-file
-                                  [Default: ]
-  --server=<server>               NFD server address to connect to.
-                                  [Default: localhost:8080]
-  --server-name-override=<name>   Name (CN) expect from server certificate, useful
-                                  in testing
-                                  [Default: ]
-  --no-publish                    Do not publish discovered features to the
-                                  cluster-local Kubernetes API server.
-  --oneshot                       Update once and exit.
-  --sleep-interval=<seconds>      Time to sleep between re-labeling. Non-positive
-                                  value implies no re-labeling (i.e. infinite
-                                  sleep). [Default: 60s]
-  --watch-namespace=<namespace>   Namespace to watch pods for. Use "" for all namespaces.
-  --sysfs=<mountpoint>            Mount point of the sysfs.
-                                  [Default: /host]
-  --kubelet-config-file=<path>    Kubelet config file path.
-                                  [Default: /podresources/config.yaml]
-  --podresources-socket=<path>    Pod Resource Socket path to use.
-                                  [Default: /podresources/kubelet.sock] `,
+  -h --help                        Show this screen.
+  --version                        Output version and exit.
+  --ca-file=<path>                 Root certificate for verifying connections
+                                   [Default: ]
+  --cert-file=<path>               Certificate used for authenticating connections
+                                   [Default: ]
+  --key-file=<path>                Private key matching --cert-file
+                                   [Default: ]
+  --server=<server>                NFD server address to connect to.
+                                   [Default: localhost:8080]
+  --server-name-override=<name>    Name (CN) expect from server certificate, useful
+                                   in testing
+                                   [Default: ]
+  --no-publish                     Do not publish discovered features to the
+                                   cluster-local Kubernetes API server.
+  --oneshot                        Update once and exit.
+  --sleep-interval=<seconds>       Time to sleep between re-labeling. Non-positive
+                                   value implies no re-labeling (i.e. infinite
+                                   sleep). [Default: 60s]
+  --watch-namespace=<namespace>    Namespace to watch pods for. Use "" for all namespaces.
+  --sysfs=<mountpoint>             Mount point of the sysfs.
+								   [Default: /host]
+  --obtain-kubelet-config=<option> Options to obtain Kubelet config file
+								   [Possible arguments: kubelet-config-file/configz-endpoint]
+								   [Default: kubelet-config-file]
+  --kubelet-config-file=<path>     Kubelet config file path.
+                                   [Default: /podresources/config.yaml]
+  --podresources-socket=<path>     Pod Resource Socket path to use.
+                                   [Default: /podresources/kubelet.sock] `,
 
 		ProgramName,
 		ProgramName,
@@ -183,8 +195,13 @@ func argsParse(argv []string) (topology.Args, resourcemonitor.Args, error) {
 	if ns, ok := arguments["--watch-namespace"].(string); ok {
 		resourcemonitorArgs.Namespace = ns
 	}
-	if kubeletConfigPath, ok := arguments["--kubelet-config-file"].(string); ok {
-		resourcemonitorArgs.KubeletConfigFile = kubeletConfigPath
+	if obtainOpt, ok := arguments["--obtain-kubelet-config"].(string); ok {
+		resourcemonitorArgs.KubeletConfigObtainOpt = obtainOpt
+	}
+	if resourcemonitorArgs.KubeletConfigObtainOpt == KubeletFile {
+		if kubeletConfigPath, ok := arguments["--kubelet-config-file"].(string); ok {
+			resourcemonitorArgs.KubeletConfigFile = kubeletConfigPath
+		}
 	}
 	resourcemonitorArgs.SysfsRoot = arguments["--sysfs"].(string)
 	if path, ok := arguments["--podresources-socket"].(string); ok {

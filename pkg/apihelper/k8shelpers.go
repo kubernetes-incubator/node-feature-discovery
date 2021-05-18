@@ -21,12 +21,18 @@ import (
 	"encoding/json"
 
 	topologyclientset "github.com/k8stopologyawareschedwg/noderesourcetopology-api/pkg/generated/clientset/versioned"
+	"github.com/pkg/errors"
+
 	api "k8s.io/api/core/v1"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	k8sclient "k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	kubeletconfigv1beta1 "k8s.io/kubelet/config/v1beta1"
+	kubeletconfig "k8s.io/kubernetes/pkg/kubelet/apis/config"
+	kubeletconfigscheme "k8s.io/kubernetes/pkg/kubelet/apis/config/scheme"
 )
 
 // Implements APIHelpers
@@ -121,4 +127,43 @@ func (h K8sHelpers) PatchNodeStatus(c *k8sclient.Clientset, nodeName string, pat
 	}
 	return nil
 
+}
+
+func (h K8sHelpers) GetKubeletConfig(c *k8sclient.Clientset, nodeName string) (*kubeletconfig.KubeletConfiguration, error) {
+	//request here is the same as: curl https://$APISERVER:6443/api/v1/nodes/$NODE_NAME/proxy/configz
+	res := c.CoreV1().RESTClient().Get().Resource("nodes").Name(nodeName).SubResource("proxy").Suffix("configz").Do(context.TODO())
+	return decodeConfigz(&res)
+}
+
+// Decodes the rest result from /configz and returns a kubeletconfig.KubeletConfiguration (internal type).
+func decodeConfigz(res *rest.Result) (*kubeletconfig.KubeletConfiguration, error) {
+	// This hack because /configz reports the following structure:
+	// {"kubeletconfig": {the JSON representation of kubeletconfigv1beta1.KubeletConfiguration}}
+	type configzWrapper struct {
+		ComponentConfig kubeletconfigv1beta1.KubeletConfiguration `json:"kubeletconfig"`
+	}
+
+	configz := configzWrapper{}
+	kubeCfg := kubeletconfig.KubeletConfiguration{}
+
+	contentsBytes, err := res.Raw()
+	if err != nil {
+		return nil, err
+	}
+
+	err = json.Unmarshal(contentsBytes, &configz)
+	if err != nil {
+		return nil, errors.Wrap(err, string(contentsBytes))
+	}
+
+	scheme, _, err := kubeletconfigscheme.NewSchemeAndCodecs()
+	if err != nil {
+		return nil, err
+	}
+	err = scheme.Convert(&configz.ComponentConfig, &kubeCfg, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return &kubeCfg, nil
 }
