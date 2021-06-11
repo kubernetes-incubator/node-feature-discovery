@@ -54,14 +54,15 @@ HOSTMOUNT_PREFIX ?= /
 
 KUBECONFIG ?=
 E2E_TEST_CONFIG ?=
+PULL_IF_NOT_PRESENT ?=
 
 LDFLAGS = -ldflags "-s -w -X sigs.k8s.io/node-feature-discovery/pkg/version.version=$(VERSION) -X sigs.k8s.io/node-feature-discovery/source.pathPrefix=$(HOSTMOUNT_PREFIX)"
 
-yaml_templates := $(wildcard *.yaml.template)
+yaml_templates := $(wildcard manifests/*.yaml.template)
 # Let's treat values.yaml as template to sync configmap
 # and allow users to install without modifications
 yaml_templates := $(yaml_templates) deployment/node-feature-discovery/values.yaml
-yaml_instances := $(patsubst %.yaml.template,%.yaml,$(yaml_templates))
+yaml_instances := $(patsubst manifests/%.yaml.template,manifests/%.yaml,$(yaml_templates))
 
 all: image
 
@@ -118,9 +119,10 @@ templates: $(yaml_templates)
 	@rm nfd-worker.conf.tmp
 
 mock:
-	mockery --name=FeatureSource --dir=source --inpkg --note="Re-generate by running 'make mock'"
-	mockery --name=APIHelpers --dir=pkg/apihelper --inpkg --note="Re-generate by running 'make mock'"
-	mockery --name=LabelerClient --dir=pkg/labeler --inpkg --note="Re-generate by running 'make mock'"
+	mockery --name=FeatureSource --dir=source --inpackage --note="Re-generate by running 'make mock'"
+	mockery --name=APIHelpers --dir=pkg/apihelper --inpackage --note="Re-generate by running 'make mock'"
+	mockery --name=LabelerClient --dir=pkg/labeler --inpackage --note="Re-generate by running 'make mock'"
+	mockery --name=NodeTopologyClient --dir=pkg/topologyupdater --inpackage --note="Re-generate by running 'make mock'"
 
 gofmt:
 	@$(GO_FMT) -w -l $$(find . -name '*.go')
@@ -147,10 +149,14 @@ test:
 e2e-test:
 	@if [ -z ${KUBECONFIG} ]; then echo "[ERR] KUBECONFIG missing, must be defined"; exit 1; fi
 	$(GO_CMD) test -v ./test/e2e/ -args -nfd.repo=$(IMAGE_REPO) -nfd.tag=$(IMAGE_TAG_NAME) \
-	    -kubeconfig=$(KUBECONFIG) -nfd.e2e-config=$(E2E_TEST_CONFIG) -ginkgo.focus="\[NFD\]" \
+	    -kubeconfig=$(KUBECONFIG) -nfd.e2e-config=$(E2E_TEST_CONFIG) \
+	    -nfd.pull-if-not-present=$(PULL_IF_NOT_PRESENT) \
+	    -ginkgo.focus="\[NFD\]" \
 	    $(if $(OPENSHIFT),-nfd.openshift,)
 	$(GO_CMD) test -v ./test/e2e/ -args -nfd.repo=$(IMAGE_REPO) -nfd.tag=$(IMAGE_TAG_NAME)-minimal \
-	    -kubeconfig=$(KUBECONFIG) -nfd.e2e-config=$(E2E_TEST_CONFIG) -ginkgo.focus="\[NFD\]" \
+	    -kubeconfig=$(KUBECONFIG) -nfd.e2e-config=$(E2E_TEST_CONFIG) \
+	    -nfd.pull-if-not-present=$(PULL_IF_NOT_PRESENT) \
+	    -ginkgo.focus="\[NFD\]" \
 	    $(if $(OPENSHIFT),-nfd.openshift,)
 
 push:
