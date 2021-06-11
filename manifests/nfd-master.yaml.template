@@ -20,6 +20,7 @@ rules:
   - ""
   resources:
   - nodes
+  - nodes/proxy
 # when using command line flag --resource-labels to create extended resources
 # you will need to uncomment "- nodes/status"
 # - nodes/status
@@ -29,6 +30,14 @@ rules:
   - update
   # List only needed for --prune
   - list
+- apiGroups:
+  - topology.node.k8s.io
+  resources:
+  - noderesourcetopologies
+  verbs:
+  - create
+  - get
+  - update
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
