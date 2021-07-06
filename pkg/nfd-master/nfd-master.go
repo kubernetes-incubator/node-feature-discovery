@@ -46,6 +46,9 @@ const (
 	// FeatureLabelNs is the namespace for feature labels
 	FeatureLabelNs = "feature.node.kubernetes.io"
 
+	// ProfileLabelNs is the namespace for profile labels
+	ProfileLabelNs = "profile.node.kubernetes.io"
+
 	// AnnotationNsBase namespace for all NFD-related annotations
 	AnnotationNsBase = "nfd.node.kubernetes.io"
 
@@ -314,7 +317,7 @@ func filterFeatureLabels(labels Labels, extraLabelNs map[string]struct{}, labelW
 		ns, name := splitNs(label)
 
 		// Check label namespace, filter out if ns is not whitelisted
-		if ns != FeatureLabelNs {
+		if ns != FeatureLabelNs && ns != ProfileLabelNs {
 			if _, ok := extraLabelNs[ns]; !ok {
 				klog.Errorf("Namespace %q is not allowed. Ignoring label %q\n", ns, label)
 				continue

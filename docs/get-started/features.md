@@ -27,7 +27,15 @@ feature sources that work accross the system.
 Each discovered feature is advertised a label in the Kubernetes Node object.
 The published node labels encode a few pieces of information:
 
-- Namespace, (all built-in labels use `feature.node.kubernetes.io`)
+- Namespace
+  - all built-in labels use `feature.node.kubernetes.io`
+  - user-specified custom labels ([custom](#custom) and
+    [local](#local--user-specific-features) feature sources)
+    - `feature.node.kubernetes.io` and `profile.node.kubernetes.io` are allowed
+      by default
+    - additional namespaces may be enabled with the
+      [`--extra-label-ns`](../advanced/master-commandline-reference#-extra-label-ns)
+      command line flag of nfd-master
 - The source for each label (e.g. `cpu`).
 - The name of the discovered feature as it appears in the underlying
   source, (e.g. `cpuid.AESNI` from cpu).
@@ -368,7 +376,7 @@ custom:
     matchOn:
       - kConfig: ["GCC_VERSION=100101"]
         loadedKMod: ["kmod1"]
-  - name: "my.datacenter"
+  - name: "profile.node.kubernetes.io/my-datacenter"
     value: "datacenter-1"
     matchOn:
       - nodename: [ "node-datacenter1-rack.*-server.*" ]
@@ -405,7 +413,7 @@ __In the example above:__
   in-tree `kmod1` kernel module is loaded __AND__ it's built with
   `GCC_VERSION=100101`.
 - A node would contain the label:
-  `feature.node.kubernetes.io/my.datacenter=datacenter-1` if the node's name
+  `profile.node.kubernetes.io/my-datacenter=datacenter-1` if the node's name
   matches the `node-datacenter1-rack.*-server.*` pattern, e.g.
   `node-datacenter1-rack2-server42`
 
@@ -568,8 +576,10 @@ This makes it possible for the user to fully control the feature label names,
 e.g. for overriding labels created by other feature sources.
 
 You can also override the default namespace of your labels using this format:
-`<namespace>/<name>[=<value>]`. You must whitelist your namespace using the
-`-extra-label-ns` option on the master. In this case, the name of the
+`<namespace>/<name>[=<value>]`. If using something else than
+`feature.node.kubernetes.io` or `profile.node.kubernetes.io`, you must
+whitelist your namespace using the `-extra-label-ns` option on the master.
+In this case, the name of the
 file will not be added to the label name. For example, if you want to add the
 label `my.namespace.org/my-label=value`, your hook output or file must contains
 `my.namespace.org/my-label=value` and you must add

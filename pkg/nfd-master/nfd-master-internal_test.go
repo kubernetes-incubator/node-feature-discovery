@@ -63,7 +63,11 @@ func newMockMaster(apihelper apihelper.APIHelpers) *nfdMaster {
 
 func TestUpdateNodeFeatures(t *testing.T) {
 	Convey("When I update the node using fake client", t, func() {
-		fakeFeatureLabels := map[string]string{FeatureLabelNs + "/source-feature.1": "1", FeatureLabelNs + "/source-feature.2": "2", FeatureLabelNs + "/source-feature.3": "val3"}
+		fakeFeatureLabels := map[string]string{
+			FeatureLabelNs + "/source-feature.1": "1",
+			FeatureLabelNs + "/source-feature.2": "2",
+			FeatureLabelNs + "/source-feature.3": "val3",
+			ProfileLabelNs + "/profile-a":        "val4"}
 		fakeAnnotations := map[string]string{"my-annotation": "my-val"}
 		fakeExtResources := ExtendedResources{FeatureLabelNs + "/source-feature.1": "1", FeatureLabelNs + "/source-feature.2": "2"}
 
