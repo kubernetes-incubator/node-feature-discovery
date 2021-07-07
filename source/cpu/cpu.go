@@ -18,14 +18,25 @@ package cpu
 
 import (
 	"io/ioutil"
+	"strconv"
 
 	"k8s.io/klog/v2"
 
+	"sigs.k8s.io/node-feature-discovery/pkg/api/feature"
+	"sigs.k8s.io/node-feature-discovery/pkg/utils"
 	"sigs.k8s.io/node-feature-discovery/source"
-	"sigs.k8s.io/node-feature-discovery/source/internal/cpuidutils"
 )
 
 const Name = "cpu"
+
+const (
+	CpuidFeature    = "cpuid"
+	CstateFeature   = "cstate"
+	PstateFeature   = "pstate"
+	RdtFeature      = "rdt"
+	SstFeature      = "sst"
+	TopologyFeature = "topology"
+)
 
 // Configuration file options
 type cpuidConfig struct {
@@ -78,22 +89,31 @@ type keyFilter struct {
 	whitelist bool
 }
 
-// Implement FeatureSource interface
-type Source struct {
+// cpuSource implements the FeatureSource, LabelSource and ConfigurableSource interfaces.
+type cpuSource struct {
 	config      *Config
 	cpuidFilter *keyFilter
+	features    *feature.DomainFeatures
 }
 
-func (s Source) Name() string { return Name }
+// Singleton source instance
+var (
+	src cpuSource
+	_   source.FeatureSource      = &src
+	_   source.LabelSource        = &src
+	_   source.ConfigurableSource = &src
+)
 
-// NewConfig method of the FeatureSource interface
-func (s *Source) NewConfig() source.Config { return newDefaultConfig() }
+func (s *cpuSource) Name() string { return Name }
 
-// GetConfig method of the FeatureSource interface
-func (s *Source) GetConfig() source.Config { return s.config }
+// NewConfig method of the LabelSource interface
+func (s *cpuSource) NewConfig() source.Config { return newDefaultConfig() }
 
-// SetConfig method of the FeatureSource interface
-func (s *Source) SetConfig(conf source.Config) {
+// GetConfig method of the LabelSource interface
+func (s *cpuSource) GetConfig() source.Config { return s.config }
+
+// SetConfig method of the LabelSource interface
+func (s *cpuSource) SetConfig(conf source.Config) {
 	switch v := conf.(type) {
 	case *Config:
 		s.config = v
@@ -103,47 +123,56 @@ func (s *Source) SetConfig(conf source.Config) {
 	}
 }
 
-func (s *Source) Discover() (source.Features, error) {
-	features := source.Features{}
+// Priority method of the LabelSource interface
+func (s *cpuSource) Priority() int { return 0 }
 
-	// Check if hyper-threading seems to be enabled
-	found, err := haveThreadSiblings()
-	if err != nil {
-		klog.Errorf("failed to detect hyper-threading: %v", err)
-	} else if found {
-		features["hardware_multithreading"] = true
+// GetLabels method of the LabelSource interface
+func (s *cpuSource) GetLabels() (source.FeatureLabels, error) {
+	labels := source.FeatureLabels{}
+
+	// CPUID
+	for f := range s.features.Keys[CpuidFeature].Features {
+		if s.cpuidFilter.unmask(f) {
+			labels["cpuid."+f] = true
+		}
 	}
 
-	// Check SST-BF
-	found, err = discoverSSTBF()
-	if err != nil {
-		klog.Errorf("failed to detect SST-BF: %v", err)
-	} else if found {
-		features["power.sst_bf.enabled"] = true
+	// Cstate
+	for k, v := range s.features.Values[CstateFeature].Features {
+		labels["cstate."+k] = v
 	}
+
+	// Pstate
+	for k, v := range s.features.Values[PstateFeature].Features {
+		labels["pstate."+k] = v
+	}
+
+	// RDT
+	for k := range s.features.Keys[RdtFeature].Features {
+		labels["rdt."+k] = true
+	}
+
+	// SST
+	for k, v := range s.features.Values[SstFeature].Features {
+		labels["power.sst_"+k] = v
+	}
+
+	// Hyperthreading
+	if v, ok := s.features.Values[TopologyFeature].Features["hardware_multithreading"]; ok {
+		labels["hardware_multithreading"] = v
+	}
+
+	return labels, nil
+}
+
+// Discover method of the FeatureSource Interface
+func (s *cpuSource) Discover() error {
+	s.features = feature.NewDomainFeatures()
 
 	// Detect CPUID
-	cpuidFlags := cpuidutils.GetCpuidFlags()
-	for _, f := range cpuidFlags {
-		if s.cpuidFilter.unmask(f) {
-			features["cpuid."+f] = true
-		}
-	}
-
-	// Detect pstate features
-	pstate, err := detectPstate()
-	if err != nil {
-		klog.Error(err)
-	} else {
-		for k, v := range pstate {
-			features["pstate."+k] = v
-		}
-	}
-
-	// Detect RDT features
-	rdt := discoverRDT()
-	for _, f := range rdt {
-		features["rdt."+f] = true
+	s.features.Keys[CpuidFeature] = *feature.NewKeyFeatures()
+	for _, f := range getCpuidFlags() {
+		s.features.Keys[CpuidFeature].Features[f] = feature.Nil{}
 	}
 
 	// Detect cstate configuration
@@ -151,10 +180,48 @@ func (s *Source) Discover() (source.Features, error) {
 	if err != nil {
 		klog.Errorf("failed to detect cstate: %v", err)
 	} else {
-		features["cstate.enabled"] = cstate
+		s.features.Values[CstateFeature] = feature.ValueFeatures{Features: cstate}
 	}
 
-	return features, nil
+	// Detect pstate features
+	pstate, err := detectPstate()
+	if err != nil {
+		klog.Error(err)
+	}
+	s.features.Values[PstateFeature] = feature.ValueFeatures{Features: pstate}
+
+	// Detect RDT features
+	s.features.Keys[RdtFeature] = *feature.NewKeyFeatures()
+	for _, f := range discoverRDT() {
+		s.features.Keys[RdtFeature].Features[f] = feature.Nil{}
+	}
+
+	// Detect SST features
+	s.features.Values[SstFeature] = feature.ValueFeatures{Features: discoverSST()}
+
+	// Detect hyper-threading
+	s.features.Values[TopologyFeature] = feature.ValueFeatures{Features: discoverTopology()}
+
+	utils.KlogDump(3, "discovered cpu features:", "  ", s.features)
+
+	return nil
+}
+
+// GetFeatures method of the FeatureSource Interface
+func (s *cpuSource) GetFeatures() *feature.DomainFeatures {
+	return s.features
+}
+
+func discoverTopology() map[string]string {
+	features := make(map[string]string)
+
+	if ht, err := haveThreadSiblings(); err != nil {
+		klog.Errorf("failed to detect hyper-threading: %v", err)
+	} else {
+		features["hardware_multithreading"] = strconv.FormatBool(ht)
+	}
+
+	return features
 }
 
 // Check if any (online) CPUs have thread siblings
@@ -182,7 +249,7 @@ func haveThreadSiblings() (bool, error) {
 	return false, nil
 }
 
-func (s *Source) initCpuidFilter() {
+func (s *cpuSource) initCpuidFilter() {
 	newFilter := keyFilter{keys: map[string]struct{}{}}
 	if len(s.config.Cpuid.AttributeWhitelist) > 0 {
 		for _, k := range s.config.Cpuid.AttributeWhitelist {
@@ -209,4 +276,8 @@ func (f keyFilter) unmask(k string) bool {
 		}
 	}
 	return false
+}
+
+func init() {
+	source.Register(&src)
 }

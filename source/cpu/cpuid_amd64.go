@@ -1,5 +1,5 @@
 /*
-Copyright 2018-2020 The Kubernetes Authors.
+Copyright 2017 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,17 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package kernelutils
+package cpu
 
 import (
-	"io/ioutil"
-	"strings"
+	"github.com/klauspost/cpuid/v2"
 )
 
-func GetKernelVersion() (string, error) {
-	unameRaw, err := ioutil.ReadFile("/proc/sys/kernel/osrelease")
-	if err != nil {
-		return "", err
-	}
-	return strings.TrimSpace(string(unameRaw)), nil
+// getCpuidFlags returns feature names for all the supported CPU features.
+func getCpuidFlags() []string {
+	return cpuid.CPU.FeatureSet()
 }

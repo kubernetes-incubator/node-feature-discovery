@@ -26,26 +26,29 @@ import (
 )
 
 // Discover if c-states are enabled
-func detectCstate() (bool, error) {
+func detectCstate() (map[string]string, error) {
+	cstate := make(map[string]string)
+
 	// When the intel_idle driver is in use (default), check setting of max_cstates
 	driver, err := ioutil.ReadFile(source.SysfsDir.Path("devices/system/cpu/cpuidle/current_driver"))
 	if err != nil {
-		return false, fmt.Errorf("cannot get driver for cpuidle: %s", err.Error())
+		return cstate, fmt.Errorf("cannot get driver for cpuidle: %s", err.Error())
 	}
 
 	if strings.TrimSpace(string(driver)) != "intel_idle" {
 		// Currently only checking intel_idle driver for cstates
-		return false, fmt.Errorf("intel_idle driver is not in use: %s", string(driver))
+		return cstate, fmt.Errorf("intel_idle driver is not in use: %s", string(driver))
 	}
 
 	data, err := ioutil.ReadFile(source.SysfsDir.Path("module/intel_idle/parameters/max_cstate"))
 	if err != nil {
-		return false, fmt.Errorf("cannot determine cstate from max_cstates: %s", err.Error())
+		return cstate, fmt.Errorf("cannot determine cstate from max_cstates: %s", err.Error())
 	}
-	cstates, err := strconv.Atoi(strings.TrimSpace(string(data)))
-	if err != nil {
-		return false, fmt.Errorf("non-integer value of cstates: %s", err.Error())
+	if cstates, err := strconv.Atoi(strings.TrimSpace(string(data))); err != nil {
+		return cstate, fmt.Errorf("non-integer value of cstates: %s", err.Error())
+	} else {
+		cstate["enabled"] = strconv.FormatBool(cstates > 0)
 	}
 
-	return cstates > 0, nil
+	return cstate, nil
 }

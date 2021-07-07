@@ -118,9 +118,12 @@ templates: $(yaml_templates)
 	@rm nfd-worker.conf.tmp
 
 mock:
-	mockery --name=FeatureSource --dir=source --inpkg --note="Re-generate by running 'make mock'"
+	mockery --name=LabelSource --dir=source --inpkg --note="Re-generate by running 'make mock'"
 	mockery --name=APIHelpers --dir=pkg/apihelper --inpkg --note="Re-generate by running 'make mock'"
 	mockery --name=LabelerClient --dir=pkg/labeler --inpkg --note="Re-generate by running 'make mock'"
+
+apigen:
+	protoc --go_opt=paths=source_relative --go_out=plugins=grpc:.  pkg/labeler/labeler.proto
 
 gofmt:
 	@$(GO_FMT) -w -l $$(find . -name '*.go')
