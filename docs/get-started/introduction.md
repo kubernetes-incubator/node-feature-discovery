@@ -21,10 +21,11 @@ This software enables node feature discovery for Kubernetes. It detects
 hardware features available on each node in a Kubernetes cluster, and
 advertises those features using node labels.
 
-NFD consists of two software components:
+NFD consists of three software components:
 
 1. nfd-master
 1. nfd-worker
+1. nfd-topology-updater
 
 ## NFD-Master
 
@@ -38,7 +39,16 @@ NFD-Worker is a daemon responsible for feature detection. It then communicates
 the information to nfd-master which does the actual node labeling.  One
 instance of nfd-worker is supposed to be running on each node of the cluster,
 
-## Feature discovery
+## NFD-Topology-Updater
+
+NFD-Topology-Updater is a daemon responsible for examining allocated resources
+on a worker node to account for allocatable resources on a per-zone basis (where
+a zone can be a NUMA node). It then communicates the information to nfd-master
+which does the CRD creation corresponding to all the nodes in the cluster. One
+instance of nfd-topology-updater is supposed to be running on each node of the
+cluster.
+
+## Feature Discovery
 
 Feature discovery is divided into domain-specific feature sources:
 
@@ -96,3 +106,43 @@ Unapplicable annotations are not created, i.e. for example master.version is
 only created on nodes running nfd-master.
 
 
+
+## NodeResourceTopology CRD
+
+When run with NFD-Topology-Updater, NFD creates CRD intances corresponding to node resource hardware topology such as:
+
+ ```yaml
+apiVersion: topology.node.k8s.io/v1alpha1
+kind: NodeResourceTopology
+metadata:
+  name: node1
+topologyPolicies: ["SingleNUMANode"]
+zones:
+  - name: node-0
+    type: Node
+    resources:
+      - name: cpu
+        capacity: 20
+        allocatable: 10
+      - name: vendor/nic1
+        capacity: 3
+        allocatable: 3
+  - name: node-1
+    type: Node
+    resources:
+      - name: cpu
+        capacity: 30
+        allocatable: 15
+      - name: vendor/nic2
+        capacity: 6
+        allocatable: 6
+  - name: node-2
+    type: Node
+    resources:
+      - name: cpu
+        capacity: 30
+        allocatable: 15
+      - name: vendor/nic1
+        capacity: 3
+        allocatable: 3
+ ```
