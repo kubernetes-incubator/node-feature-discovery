@@ -1,0 +1,120 @@
+sources:
+  custom:
+
+  - name: LEGACY-loaded-kmod-test-1
+    matchOn:
+    - loadedKMod: ["fuse", "ip_tables"]
+  - name: LEGACY-loaded-kmod-test-NEGATIVE
+    matchOn:
+    - loadedKMod: ["fuse", "ip_tables_foo"]
+
+
+  - name: LEGACY-cpuid-test-1
+    matchOn:
+    - cpuid: ["AVX", "AESNI"]
+  - name: LEGACY-cpuid-test-NEGATIVE
+    matchOn:
+    - cpuid: ["AVX1234"]
+
+  - name: LEGACY-pci-id-test-1
+    matchOn:
+    - pciId:
+        class: ["0600"]
+        vendor: ["8086"]
+  - name: LEGACY-pci-id-test-NEGATIVE
+    matchOn:
+    - pciId:
+        class: ["0600"]
+        vendor: ["ffff"]
+
+  - name: LEGACY-usb-id-test-1
+    matchOn:
+    - usbId:
+        class: ["09"]
+        vendor: ["1d6b"]
+  - name: LEGACY-usb-id-test-NEGATIVE
+    matchOn:
+    - usbId:
+        class: ["09"]
+        vendor: ["ffff"]
+
+  - name: LEGACY-nodename-test-1
+    matchOn:
+    - nodeName: ["foo"]
+  - name: LEGACY-nodename-test-NEGATIVE
+    matchOn:
+    - nodeName: ["bar"]
+
+  - name: cpu-test-1
+    matchAny:
+    - cpu.cpuid: ["AVX", "AESNI"]
+      cpu.rdt:
+        RDTL3CA: {op: DoesNotExist}
+  - name: cpu-test-NEGATIVE
+    matchAny:
+    - cpu.cpuid: ["AVX", "AESNI512"]
+
+  - name: kernel-test-1
+    matchAny:
+    - kernel.loadedModule : ["fuse"]
+      kernel.config:
+        X86:
+        LOG_BUF_SHIFT: {op: Gt, value: ["10"]}
+      kernel.version:
+        major: {op: In, value: ["4"]}
+        minor: {op: Gt, value: ["11"]}
+  - name: kernel-test-NEGATIVE
+    matchAny:
+    - kernel.loadedModule : ["fuse"]
+      kernel.config:
+        LOG_BUF_SHIFT: {op: Lt, value: ["10"]}
+
+  - name: system-test-1
+    matchAny:
+    - system.osRelease:
+        NAME: {op: InRegexp, value: ["^openSUSE.*"]}
+        VERSION_ID.major: {op: In, value: ["13", "15"]}
+  - name: system-test-NEGATIVE
+    matchAny:
+    - system.osRelease:
+        VERSION_ID.major: {op: Gt, value: ["130"]}
+
+  - name: local-test-1
+    matchAny:
+    - local.label:
+        example.com/local-feature: {op: Lt, value: ["200"]}
+  - name: local-test-NEGATIVE
+    matchAny:
+    - local.label:
+        example.com/local-feature: {op: Gt, value: ["200"]}
+
+  - name: "{{range .pci.device}}TEMPLATE-pci-id-test-intel-{{ .class}}-{{ .device }}=present\n{{end}}"
+    matchAny:
+    - pci.device:
+        class: {op: InRegexp, value: ["^06"]}
+        vendor: ["8086"]
+
+  - name: "{{range .system.osrelease}}TEMPLATE-system-test-{{.Name}}={{.Value}}\n{{end}}"
+    matchAll:
+    - system.osrelease:
+        NAME: {op: InRegexp, value: ["^openSUSE.*"]}
+        ID: {op: InRegexp, value: ["^open.*"]}
+        VERSION_ID.major: {op: In, value: ["13", "15"]}
+
+  - name: "{{range .pci.device}}TEMPLATE-pci-combo-test-{{ .class}}-{{ .device }}=with-cpuid\n{{end}}"
+    matchAll:
+    - pci.device:
+        class: {op: InRegexp, value: ["^060[01]"]}
+        vendor: ["8086"]
+    - cpu.cpuid:
+        AVX: {op: Exists}
+
+  - name: "{{range .kernel.config}}WILDCARD-kconfig-{{.Name}}={{.Value}}\n{{end}}"
+    matchAny:
+    - kernel.config:
+        "*": {op: In, value: [SWAP, X86, AARCH64]}
+
+  - name:  WILDCARD-test-sse
+    matchAny:
+    - cpu.cpuid:
+        "*": {op: InRegexp, value: ["^SSE"]}

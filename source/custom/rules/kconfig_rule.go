@@ -1,5 +1,5 @@
 /*
-Copyright 2020 The Kubernetes Authors.
+Copyright 2020-2021 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,34 +18,20 @@ package rules
 
 import (
 	"fmt"
-	"sigs.k8s.io/node-feature-discovery/source/internal/kernelutils"
+
+	"sigs.k8s.io/node-feature-discovery/source"
+	"sigs.k8s.io/node-feature-discovery/source/kernel"
 )
 
-// KconfigRule implements Rule
-type KconfigRule []string
-
-var kConfigs map[string]struct{}
-
-func (kconfigs *KconfigRule) Match() (bool, error) {
-	for _, f := range *kconfigs {
-		if _, ok := kConfigs[f]; !ok {
-			return false, nil
-		}
-	}
-	return true, nil
+// KconfigRule implements Rule for the custom source
+type KconfigRule struct {
+	source.MatchExpressionSet
 }
 
-func init() {
-	kConfigs = make(map[string]struct{})
-
-	kconfig, err := kernelutils.ParseKconfig("")
-	if err == nil {
-		for k, v := range kconfig {
-			if v != "true" {
-				kConfigs[fmt.Sprintf("%s=%s", k, v)] = struct{}{}
-			} else {
-				kConfigs[k] = struct{}{}
-			}
-		}
+func (r *KconfigRule) Match() (bool, error) {
+	options, ok := source.GetFeatureSource("kernel").GetFeatures().Values[kernel.ConfigFeature]
+	if !ok {
+		return false, fmt.Errorf("kernel config options not available")
 	}
+	return r.MatchValues(options.Features)
 }

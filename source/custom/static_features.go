@@ -17,6 +17,7 @@ limitations under the License.
 package custom
 
 import (
+	"sigs.k8s.io/node-feature-discovery/source"
 	"sigs.k8s.io/node-feature-discovery/source/custom/rules"
 )
 
@@ -26,19 +27,26 @@ func getStaticFeatureConfig() []FeatureSpec {
 	return []FeatureSpec{
 		{
 			Name: "rdma.capable",
-			MatchOn: []MatchRule{
+			MatchOn: []LegacyRule{
 				{
 					PciID: &rules.PciIDRule{
-						PciIDRuleInput: rules.PciIDRuleInput{Vendor: []string{"15b3"}},
+						source.MatchExpressionSet{
+							"vendor": source.NewMatchExpression(source.MatchIn, "15b3"),
+						},
 					},
 				},
 			},
 		},
 		{
 			Name: "rdma.available",
-			MatchOn: []MatchRule{
+			MatchOn: []LegacyRule{
 				{
-					LoadedKMod: &rules.LoadedKModRule{"ib_uverbs", "rdma_ucm"},
+					LoadedKMod: &rules.LoadedKModRule{
+						source.MatchExpressionSet{
+							"ib_uverbs": source.NewMatchExpression(source.MatchExists),
+							"rdma_ucm":  source.NewMatchExpression(source.MatchExists),
+						},
+					},
 				},
 			},
 		},

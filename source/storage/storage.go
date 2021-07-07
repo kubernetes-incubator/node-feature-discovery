@@ -1,5 +1,5 @@
 /*
-Copyright 2018 The Kubernetes Authors.
+Copyright 2018-2021 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -25,24 +25,24 @@ import (
 
 const Name = "storage"
 
-// Source implements FeatureSource.
-type Source struct{}
+// storageSource implements the LabelSource interface.
+type storageSource struct{}
+
+// Singleton source instance
+var (
+	src storageSource
+	_   source.LabelSource = &src
+)
 
 // Name returns an identifier string for this feature source.
-func (s Source) Name() string { return Name }
+func (s *storageSource) Name() string { return Name }
 
-// NewConfig method of the FeatureSource interface
-func (s *Source) NewConfig() source.Config { return nil }
+// Priority method of the LabelSource interface
+func (s *storageSource) Priority() int { return 0 }
 
-// GetConfig method of the FeatureSource interface
-func (s *Source) GetConfig() source.Config { return nil }
-
-// SetConfig method of the FeatureSource interface
-func (s *Source) SetConfig(source.Config) {}
-
-// Discover returns feature names for storage: nonrotationaldisk if any SSD drive present.
-func (s Source) Discover() (source.Features, error) {
-	features := source.Features{}
+// GetLabels method of the LabelSource interface
+func (s *storageSource) GetLabels() (source.FeatureLabels, error) {
+	features := source.FeatureLabels{}
 
 	// Check if there is any non-rotational block devices attached to the node
 	blockdevices, err := ioutil.ReadDir(source.SysfsDir.Path("block"))
@@ -61,4 +61,8 @@ func (s Source) Discover() (source.Features, error) {
 		}
 	}
 	return features, nil
+}
+
+func init() {
+	source.Register(&src)
 }
