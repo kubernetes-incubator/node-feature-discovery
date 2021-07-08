@@ -43,8 +43,11 @@ import (
 )
 
 const (
-	// LabelNs defines the namespace for feature labels
-	LabelNs = "feature.node.kubernetes.io"
+	// FeatureLabelNs is the namespace for feature labels
+	FeatureLabelNs = "feature.node.kubernetes.io"
+
+	// ProfileLabelNs is the namespace for profile labels
+	ProfileLabelNs = "profile.node.kubernetes.io"
 
 	// AnnotationNsBase namespace for all NFD-related annotations
 	AnnotationNsBase = "nfd.node.kubernetes.io"
@@ -309,12 +312,12 @@ func filterFeatureLabels(labels Labels, extraLabelNs map[string]struct{}, labelW
 
 	for label, value := range labels {
 		// Add possibly missing default ns
-		label := addNs(label, LabelNs)
+		label := addNs(label, FeatureLabelNs)
 
 		ns, name := splitNs(label)
 
 		// Check label namespace, filter out if ns is not whitelisted
-		if ns != LabelNs {
+		if ns != FeatureLabelNs && ns != ProfileLabelNs {
 			if _, ok := extraLabelNs[ns]; !ok {
 				klog.Errorf("Namespace %q is not allowed. Ignoring label %q\n", ns, label)
 				continue
@@ -333,7 +336,7 @@ func filterFeatureLabels(labels Labels, extraLabelNs map[string]struct{}, labelW
 	extendedResources := ExtendedResources{}
 	for extendedResourceName := range extendedResourceNames {
 		// Add possibly missing default ns
-		extendedResourceName = addNs(extendedResourceName, LabelNs)
+		extendedResourceName = addNs(extendedResourceName, FeatureLabelNs)
 		if value, ok := outLabels[extendedResourceName]; ok {
 			if _, err := strconv.Atoi(value); err != nil {
 				klog.Errorf("bad label value (%s: %s) encountered for extended resource: %s", extendedResourceName, value, err.Error())
@@ -427,7 +430,7 @@ func (m *nfdMaster) updateNodeFeatures(nodeName string, labels Labels, annotatio
 	labelKeys := make([]string, 0, len(labels))
 	for key := range labels {
 		// Drop the ns part for labels in the default ns
-		labelKeys = append(labelKeys, strings.TrimPrefix(key, LabelNs+"/"))
+		labelKeys = append(labelKeys, strings.TrimPrefix(key, FeatureLabelNs+"/"))
 	}
 	sort.Strings(labelKeys)
 	annotations[m.annotationName(featureLabelAnnotation)] = strings.Join(labelKeys, ",")
@@ -436,13 +439,13 @@ func (m *nfdMaster) updateNodeFeatures(nodeName string, labels Labels, annotatio
 	extendedResourceKeys := make([]string, 0, len(extendedResources))
 	for key := range extendedResources {
 		// Drop the ns part if in the default ns
-		extendedResourceKeys = append(extendedResourceKeys, strings.TrimPrefix(key, LabelNs+"/"))
+		extendedResourceKeys = append(extendedResourceKeys, strings.TrimPrefix(key, FeatureLabelNs+"/"))
 	}
 	sort.Strings(extendedResourceKeys)
 	annotations[m.annotationName(extendedResourceAnnotation)] = strings.Join(extendedResourceKeys, ",")
 
 	// Create JSON patches for changes in labels and annotations
-	oldLabels := stringToNsNames(node.Annotations[m.annotationName(featureLabelAnnotation)], LabelNs)
+	oldLabels := stringToNsNames(node.Annotations[m.annotationName(featureLabelAnnotation)], FeatureLabelNs)
 	patches := createPatches(oldLabels, node.Labels, labels, "/metadata/labels")
 	patches = append(patches, createPatches(nil, node.Annotations, annotations, "/metadata/annotations")...)
 
@@ -516,7 +519,7 @@ func (m *nfdMaster) createExtendedResourcePatches(n *api.Node, extendedResources
 	patches := []apihelper.JsonPatch{}
 
 	// Form a list of namespaced resource names managed by us
-	oldResources := stringToNsNames(n.Annotations[m.annotationName(extendedResourceAnnotation)], LabelNs)
+	oldResources := stringToNsNames(n.Annotations[m.annotationName(extendedResourceAnnotation)], FeatureLabelNs)
 
 	// figure out which resources to remove
 	for _, resource := range oldResources {
