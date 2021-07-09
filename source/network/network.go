@@ -40,24 +40,24 @@ const (
 
 const sysfsBaseDir = "class/net"
 
-// Source implements FeatureSource.
-type Source struct{}
+// networkSource implements the LabelSource interface.
+type networkSource struct{}
+
+// Singleton source instance
+var (
+	src networkSource
+	_   source.LabelSource = &src
+)
 
 // Name returns an identifier string for this feature source.
-func (s Source) Name() string { return Name }
+func (s *networkSource) Name() string { return Name }
 
-// NewConfig method of the FeatureSource interface
-func (s *Source) NewConfig() source.Config { return nil }
+// Priority method of the LabelSource interface
+func (s *networkSource) Priority() int { return 0 }
 
-// GetConfig method of the FeatureSource interface
-func (s *Source) GetConfig() source.Config { return nil }
-
-// SetConfig method of the FeatureSource interface
-func (s *Source) SetConfig(source.Config) {}
-
-// Discover returns feature names sriov-configured and sriov if SR-IOV capable NICs are present and/or SR-IOV virtual functions are configured on the node
-func (s Source) Discover() (source.Features, error) {
-	features := source.Features{}
+// GetLabels method of the LabelSource interface
+func (s *networkSource) GetLabels() (source.FeatureLabels, error) {
+	features := source.FeatureLabels{}
 
 	netInterfaces, err := ioutil.ReadDir(source.SysfsDir.Path(sysfsBaseDir))
 	if err != nil {
@@ -124,4 +124,8 @@ func readIfFlags(name string) (uint64, error) {
 	}
 
 	return flags, nil
+}
+
+func init() {
+	source.Register(&src)
 }

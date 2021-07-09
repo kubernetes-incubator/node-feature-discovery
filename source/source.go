@@ -1,5 +1,5 @@
 /*
-Copyright 2017 The Kubernetes Authors.
+Copyright 2017-2021 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,18 +16,41 @@ limitations under the License.
 
 package source
 
-// Value of a feature
-type FeatureValue interface{}
+import (
+	"fmt"
 
-type Features map[string]FeatureValue
+	"sigs.k8s.io/node-feature-discovery/pkg/api/feature"
+)
 
-// FeatureSource represents a source of a discovered node feature.
-type FeatureSource interface {
-	// Name returns a friendly name for this source of node feature.
+// Source is the base interface for all other source interfaces
+type Source interface {
+	// Name returns a friendly name for this source
 	Name() string
+}
 
-	// Discover returns discovered features for this node.
-	Discover() (Features, error)
+// FeatureSource is an interface for discovering node features
+type FeatureSource interface {
+	// Discover does feature discovery
+	Discover() error
+
+	// GetFeatures returns discovered features in raw form
+	GetFeatures() *feature.DomainFeatures
+}
+
+// LabelSource represents a source of node feature labels
+type LabelSource interface {
+	Source
+
+	// GetLabels returns discovered feature labels
+	GetLabels() (FeatureLabels, error)
+
+	// Priority returns the priority of the source
+	Priority() int
+}
+
+// ConfigurableSource is an interface for a source that can be configured
+type ConfigurableSource interface {
+	Source
 
 	// NewConfig returns a new default config of the source
 	NewConfig() Config
@@ -39,5 +62,88 @@ type FeatureSource interface {
 	SetConfig(Config)
 }
 
+// TestSource represents a source purposed for testing only
+type TestSource interface {
+	Source
+
+	// IsTestSource returns true if the source is not for production
+	IsTestSource() bool
+}
+
+// FeatureLabelValue represents the value of one feature label
+type FeatureLabelValue interface{}
+
+// FeatureLabels is a collection of feature labels
+type FeatureLabels map[string]FeatureLabelValue
+
+// Config is the generic interface for source configuration data
 type Config interface {
+}
+
+// sources contain all registered sources
+var sources = make(map[string]Source)
+
+// RegisterSource registers a source
+func Register(s Source) {
+	if name, ok := sources[s.Name()]; ok {
+		panic(fmt.Sprintf("source %q already registered", name))
+	}
+	sources[s.Name()] = s
+}
+
+// GetFeatureSource returns a registered FeatureSource interface
+func GetFeatureSource(name string) FeatureSource {
+	if s, ok := sources[name].(FeatureSource); ok {
+		return s
+	}
+	return nil
+}
+
+// GetAllFeatureSources returns all registered label sources
+func GetAllFeatureSources() map[string]FeatureSource {
+	all := make(map[string]FeatureSource)
+	for k, v := range sources {
+		if s, ok := v.(FeatureSource); ok {
+			all[k] = s
+		}
+	}
+	return all
+}
+
+// GetLabelSource a registered label source
+func GetLabelSource(name string) LabelSource {
+	if s, ok := sources[name].(LabelSource); ok {
+		return s
+	}
+	return nil
+}
+
+// GetAllLabelSources returns all registered label sources
+func GetAllLabelSources() map[string]LabelSource {
+	all := make(map[string]LabelSource)
+	for k, v := range sources {
+		if s, ok := v.(LabelSource); ok {
+			all[k] = s
+		}
+	}
+	return all
+}
+
+// GetConfigurableSource a registered configurable source
+func GetConfigurableSource(name string) ConfigurableSource {
+	if s, ok := sources[name].(ConfigurableSource); ok {
+		return s
+	}
+	return nil
+}
+
+// GetAllConfigurableSources returns all registered configurable sources
+func GetAllConfigurableSources() map[string]ConfigurableSource {
+	all := make(map[string]ConfigurableSource)
+	for k, v := range sources {
+		if s, ok := v.(ConfigurableSource); ok {
+			all[k] = s
+		}
+	}
+	return all
 }

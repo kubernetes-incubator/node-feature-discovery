@@ -1,0 +1,163 @@
+
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.6.0
+  creationTimestamp: null
+  name: labelrules.nfd.kubernetes.test
+spec:
+  group: nfd.kubernetes.test
+  names:
+    kind: LabelRule
+    listKind: LabelRuleList
+    plural: labelrules
+    singular: labelrule
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: LabelRule resource specifies a configuration for custom node
+          labeling.
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: RuleSpec defines a set of labeling rules.
+            properties:
+              rules:
+                items:
+                  description: Rule defines a rule for creating on feature label.
+                  properties:
+                    matchAll:
+                      description: MatchAll specifies a list of expression sets all
+                        of which must match
+                      items:
+                        additionalProperties:
+                          additionalProperties:
+                            description: MatchExpression specifies an expression to
+                              evaluate against a set of input values. It contains
+                              an operator that is applied when matching the input
+                              and an array of values that the operator evaluates the
+                              input against.
+                            properties:
+                              op:
+                                description: Op is the operator to be applied.
+                                enum:
+                                - In
+                                - NotIn
+                                - InRegexp
+                                - Exists
+                                - DoesNotExist
+                                - Gt
+                                - Lt
+                                - IsTrue
+                                - IsFalse
+                                type: string
+                              value:
+                                description: Value is the list of values that the
+                                  operand evaluates the input against. Value should
+                                  empty if the operator is Exists, DoesNotExist, IsTrue
+                                  or IsFalse.  Value should contain a single element
+                                  if the operator is Gt or Lt. In other cases Value
+                                  should contain at least one element.
+                                items:
+                                  type: string
+                                type: array
+                            required:
+                            - op
+                            type: object
+                          description: FeatureRule defines rules for one feature,
+                            matching against its attributes.
+                          type: object
+                        description: MatchRule specifies a set of expressions for
+                          one feature.
+                        type: object
+                      type: array
+                    matchAny:
+                      description: MatchAny specifies a list of expression sets one
+                        of which must match
+                      items:
+                        additionalProperties:
+                          additionalProperties:
+                            description: MatchExpression specifies an expression to
+                              evaluate against a set of input values. It contains
+                              an operator that is applied when matching the input
+                              and an array of values that the operator evaluates the
+                              input against.
+                            properties:
+                              op:
+                                description: Op is the operator to be applied.
+                                enum:
+                                - In
+                                - NotIn
+                                - InRegexp
+                                - Exists
+                                - DoesNotExist
+                                - Gt
+                                - Lt
+                                - IsTrue
+                                - IsFalse
+                                type: string
+                              value:
+                                description: Value is the list of values that the
+                                  operand evaluates the input against. Value should
+                                  empty if the operator is Exists, DoesNotExist, IsTrue
+                                  or IsFalse.  Value should contain a single element
+                                  if the operator is Gt or Lt. In other cases Value
+                                  should contain at least one element.
+                                items:
+                                  type: string
+                                type: array
+                            required:
+                            - op
+                            type: object
+                          description: FeatureRule defines rules for one feature,
+                            matching against its attributes.
+                          type: object
+                        description: MatchRule specifies a set of expressions for
+                          one feature.
+                        type: object
+                      type: array
+                    name:
+                      description: Name of the label to be generated.
+                      type: string
+                    noLabel:
+                      description: NoLabel disables the label output of the rule.
+                        Output value(s) of the matching process are only added as
+                        values under a special "MATCHES" key for subsequent rules
+                        to use as input features for matching.
+                      type: boolean
+                    value:
+                      description: Value of the label, optional.
+                      type: string
+                  required:
+                  - name
+                  type: object
+                type: array
+            required:
+            - rules
+            type: object
+        required:
+        - spec
+        type: object
+    served: true
+    storage: true
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []

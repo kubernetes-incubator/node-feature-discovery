@@ -17,6 +17,7 @@ limitations under the License.
 package custom
 
 import (
+	nfdv1alpha1 "sigs.k8s.io/node-feature-discovery/pkg/apis/nfd/v1alpha1"
 	"sigs.k8s.io/node-feature-discovery/source/custom/rules"
 )
 
@@ -25,20 +26,35 @@ import (
 func getStaticFeatureConfig() []FeatureSpec {
 	return []FeatureSpec{
 		{
-			Name: "rdma.capable",
-			MatchOn: []MatchRule{
+			Rule: nfdv1alpha1.Rule{
+				Name: "rdma.capable",
+			},
+			MatchOn: []LegacyRule{
 				{
 					PciID: &rules.PciIDRule{
-						PciIDRuleInput: rules.PciIDRuleInput{Vendor: []string{"15b3"}},
+						nfdv1alpha1.MatchExpressionSet{
+							Expressions: nfdv1alpha1.Expressions{
+								"vendor": nfdv1alpha1.NewMatchExpression(nfdv1alpha1.MatchIn, "15b3"),
+							},
+						},
 					},
 				},
 			},
 		},
 		{
-			Name: "rdma.available",
-			MatchOn: []MatchRule{
+			Rule: nfdv1alpha1.Rule{
+				Name: "rdma.available",
+			},
+			MatchOn: []LegacyRule{
 				{
-					LoadedKMod: &rules.LoadedKModRule{"ib_uverbs", "rdma_ucm"},
+					LoadedKMod: &rules.LoadedKModRule{
+						nfdv1alpha1.MatchExpressionSet{
+							Expressions: nfdv1alpha1.Expressions{
+								"ib_uverbs": nfdv1alpha1.NewMatchExpression(nfdv1alpha1.MatchExists),
+								"rdma_ucm":  nfdv1alpha1.NewMatchExpression(nfdv1alpha1.MatchExists),
+							},
+						},
+					},
 				},
 			},
 		},

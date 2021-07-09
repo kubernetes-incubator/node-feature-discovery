@@ -34,9 +34,14 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/peer"
 	api "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/labels"
+	restclient "k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/klog/v2"
 
+	"sigs.k8s.io/node-feature-discovery/pkg/api/feature"
 	"sigs.k8s.io/node-feature-discovery/pkg/apihelper"
+	nfdv1alpha1 "sigs.k8s.io/node-feature-discovery/pkg/apis/nfd/v1alpha1"
 	pb "sigs.k8s.io/node-feature-discovery/pkg/labeler"
 	"sigs.k8s.io/node-feature-discovery/pkg/utils"
 	"sigs.k8s.io/node-feature-discovery/pkg/version"
@@ -74,6 +79,7 @@ type Args struct {
 	KeyFile        string
 	Kubeconfig     string
 	LabelWhiteList utils.RegexpVal
+	NoController   bool
 	NoPublish      bool
 	Port           int
 	Prune          bool
@@ -88,6 +94,8 @@ type NfdMaster interface {
 }
 
 type nfdMaster struct {
+	*nfdController
+
 	args         Args
 	nodeName     string
 	annotationNs string
@@ -95,6 +103,7 @@ type nfdMaster struct {
 	stop         chan struct{}
 	ready        chan bool
 	apihelper    apihelper.APIHelpers
+	kubeconfig   *restclient.Config
 }
 
 // Create new NfdMaster server instance.
@@ -130,7 +139,13 @@ func NewNfdMaster(args *Args) (NfdMaster, error) {
 	}
 
 	// Initialize Kubernetes API helpers
-	nfd.apihelper = apihelper.K8sHelpers{Kubeconfig: args.Kubeconfig}
+	if !args.NoPublish {
+		kubeconfig, err := nfd.getKubeconfig()
+		if err != nil {
+			return nfd, err
+		}
+		nfd.apihelper = apihelper.K8sHelpers{Kubeconfig: kubeconfig}
+	}
 
 	return nfd, nil
 }
@@ -146,6 +161,15 @@ func (m *nfdMaster) Run() error {
 
 	if m.args.Prune {
 		return m.prune()
+	}
+
+	if !m.args.NoController {
+		kubeconfig, err := m.getKubeconfig()
+		if err != nil {
+			return err
+		}
+		klog.Info("starting nfd LabelRule controller")
+		m.nfdController = newNfdController(kubeconfig)
 	}
 
 	if !m.args.NoPublish {
@@ -215,6 +239,10 @@ func (m *nfdMaster) Run() error {
 // Stop NfdMaster
 func (m *nfdMaster) Stop() {
 	m.server.Stop()
+
+	if m.nfdController != nil {
+		m.nfdController.stop()
+	}
 
 	select {
 	case m.stop <- struct{}{}:
@@ -386,14 +414,27 @@ func (m *nfdMaster) SetLabels(c context.Context, r *pb.SetLabelsRequest) (*pb.Se
 			return &pb.SetLabelsReply{}, err
 		}
 	}
-	if klog.V(1).Enabled() {
-		klog.Infof("REQUEST Node: %q NFD-version: %q Labels: %s", r.NodeName, r.NfdVersion, r.Labels)
 
-	} else {
+	switch {
+	case klog.V(4).Enabled():
+		utils.KlogDump(3, "REQUEST", "  ", r)
+	case klog.V(1).Enabled():
+		klog.Infof("REQUEST Node: %q NFD-version: %q Labels: %s", r.NodeName, r.NfdVersion, r.Labels)
+	default:
 		klog.Infof("received labeling request for node %q", r.NodeName)
 	}
 
-	labels, extendedResources := filterFeatureLabels(r.Labels, m.args.ExtraLabelNs, m.args.LabelWhiteList.Regexp, m.args.ResourceLabels)
+	// Mix in CR-originated labels
+	rawLabels := make(map[string]string)
+	if r.Labels != nil {
+		// NOTE: we effectively mangle the request struct by not creating a deep copy of the map
+		rawLabels = r.Labels
+	}
+	for k, v := range m.crLabels(r) {
+		rawLabels[k] = v
+	}
+
+	labels, extendedResources := filterFeatureLabels(rawLabels, m.args.ExtraLabelNs, m.args.LabelWhiteList.Regexp, m.args.ResourceLabels)
 
 	if !m.args.NoPublish {
 		// Advertise NFD worker version as an annotation
@@ -406,6 +447,53 @@ func (m *nfdMaster) SetLabels(c context.Context, r *pb.SetLabelsRequest) (*pb.Se
 		}
 	}
 	return &pb.SetLabelsReply{}, nil
+}
+
+func (m *nfdMaster) crLabels(r *pb.SetLabelsRequest) map[string]string {
+	if m.nfdController == nil {
+		return nil
+	}
+
+	l := make(map[string]string)
+	ruleSpecs, err := m.nfdController.lister.List(labels.Everything())
+	sort.Slice(ruleSpecs, func(i, j int) bool {
+		return ruleSpecs[i].Name < ruleSpecs[j].Name
+	})
+
+	if err != nil {
+		klog.Errorf("failed to list LabelRule resources: %w", err)
+		return nil
+	}
+
+	// Process all rule CRs
+	for _, spec := range ruleSpecs {
+		switch {
+		case klog.V(3).Enabled():
+			h := fmt.Sprintf("executing LabelRule \"%s/%s\":", spec.ObjectMeta.Namespace, spec.ObjectMeta.Name)
+			utils.KlogDump(3, h, "  ", spec.Spec)
+		case klog.V(1).Enabled():
+			klog.Infof("executing LabelRule \"%s/%s\"", spec.ObjectMeta.Namespace, spec.ObjectMeta.Name)
+		}
+		for _, rule := range spec.Spec.Rules {
+			ruleOut, err := rule.Match(r.Features)
+			if err != nil {
+				klog.Errorf("failed to process Rule %q: %w", rule.Name, err)
+				continue
+			}
+
+			if !rule.NoLabel {
+				for k, v := range ruleOut {
+					l[k] = v
+				}
+			}
+			utils.KlogDump(1, "", "  ", ruleOut)
+
+			// Feed back rule output to features map for subsequent rules to match
+			feature.InsertValues(r.Features, nfdv1alpha1.RuleBackrefDomain, nfdv1alpha1.RuleBackrefFeature, ruleOut)
+		}
+	}
+
+	return l
 }
 
 // updateNodeFeatures ensures the Kubernetes node object is up to date,
@@ -468,6 +556,18 @@ func (m *nfdMaster) updateNodeFeatures(nodeName string, labels Labels, annotatio
 
 func (m *nfdMaster) annotationName(name string) string {
 	return path.Join(m.annotationNs, name)
+}
+
+func (m *nfdMaster) getKubeconfig() (*restclient.Config, error) {
+	var err error
+	if m.kubeconfig == nil {
+		if m.args.Kubeconfig == "" {
+			m.kubeconfig, err = restclient.InClusterConfig()
+		} else {
+			m.kubeconfig, err = clientcmd.BuildConfigFromFlags("", m.args.Kubeconfig)
+		}
+	}
+	return m.kubeconfig, err
 }
 
 // Remove any labels having the given prefix

@@ -39,6 +39,7 @@ type testContext struct {
 func setupTest(args *master.Args) testContext {
 	// Fixed port and no-publish, for convenience
 	args.NoPublish = true
+	args.NoController = true
 	args.Port = 8192
 	args.LabelWhiteList.Regexp = *regexp.MustCompile("")
 	m, err := master.NewNfdMaster(args)
