@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"flag"
 	"testing"
 	"time"
 
@@ -25,8 +26,10 @@ import (
 
 func TestArgsParse(t *testing.T) {
 	Convey("When parsing command line arguments", t, func() {
+		flags := flag.NewFlagSet(ProgramName, flag.ExitOnError)
+
 		Convey("When --no-publish and --oneshot flags are passed", func() {
-			args, finderArgs, err := argsParse([]string{"--no-publish", "--oneshot"})
+			args, finderArgs := parseArgs(flags, "--oneshot", "--no-publish")
 
 			Convey("noPublish is set and args.sources is set to the default value", func() {
 				So(args.NoPublish, ShouldBeTrue)
@@ -35,12 +38,13 @@ func TestArgsParse(t *testing.T) {
 				So(finderArgs.SysfsRoot, ShouldEqual, "/host")
 				So(finderArgs.KubeletConfigFile, ShouldEqual, "/podresources/config.yaml")
 				So(finderArgs.PodResourceSocketPath, ShouldEqual, "/podresources/kubelet.sock")
-				So(err, ShouldBeNil)
 			})
 		})
 
 		Convey("When valid args are specified for --kubelet-config-file and --sleep-interval,", func() {
-			args, finderArgs, err := argsParse([]string{"--kubelet-config-file=/path/testconfig.yaml", "--sleep-interval=30s"})
+			args, finderArgs := parseArgs(flags,
+				"--kubelet-config-file=/path/testconfig.yaml",
+				"--sleep-interval=30s")
 
 			Convey("args.sources is set to appropriate values", func() {
 				So(args.NoPublish, ShouldBeFalse)
@@ -49,12 +53,13 @@ func TestArgsParse(t *testing.T) {
 				So(finderArgs.SysfsRoot, ShouldEqual, "/host")
 				So(finderArgs.KubeletConfigFile, ShouldEqual, "/path/testconfig.yaml")
 				So(finderArgs.PodResourceSocketPath, ShouldEqual, "/podresources/kubelet.sock")
-				So(err, ShouldBeNil)
 			})
 		})
 
 		Convey("When valid args are specified for --podresources-socket flag and --sleep-interval is specified", func() {
-			args, finderArgs, err := argsParse([]string{"--podresources-socket=/path/testkubelet.sock", "--sleep-interval=30s"})
+			args, finderArgs := parseArgs(flags,
+				"--podresources-socket=/path/testkubelet.sock",
+				"--sleep-interval=30s")
 
 			Convey("args.sources is set to appropriate values", func() {
 				So(args.NoPublish, ShouldBeFalse)
@@ -63,11 +68,12 @@ func TestArgsParse(t *testing.T) {
 				So(finderArgs.SysfsRoot, ShouldEqual, "/host")
 				So(finderArgs.KubeletConfigFile, ShouldEqual, "/podresources/config.yaml")
 				So(finderArgs.PodResourceSocketPath, ShouldEqual, "/path/testkubelet.sock")
-				So(err, ShouldBeNil)
 			})
 		})
 		Convey("When valid args are specified for--sysfs and --sleep-inteval is specified", func() {
-			args, finderArgs, err := argsParse([]string{"--sysfs=/host/sysfs-root", "--sleep-interval=30s"})
+			args, finderArgs := parseArgs(flags,
+				"--sysfs=/host/sysfs-root",
+				"--sleep-interval=30s")
 
 			Convey("args.sources is set to appropriate values", func() {
 				So(args.NoPublish, ShouldBeFalse)
@@ -76,12 +82,19 @@ func TestArgsParse(t *testing.T) {
 				So(finderArgs.SysfsRoot, ShouldEqual, "/host/sysfs-root")
 				So(finderArgs.KubeletConfigFile, ShouldEqual, "/podresources/config.yaml")
 				So(finderArgs.PodResourceSocketPath, ShouldEqual, "/podresources/kubelet.sock")
-				So(err, ShouldBeNil)
 			})
 		})
 
 		Convey("When All valid args are specified", func() {
-			args, finderArgs, err := argsParse([]string{"--no-publish", "--sleep-interval=30s", "--sysfs=/host/sysfs-root", "--kubelet-config-file=/path/testconfig.yaml", "--podresources-socket=/path/testkubelet.sock", "--ca-file=ca", "--cert-file=crt", "--key-file=key"})
+			args, finderArgs := parseArgs(flags,
+				"--no-publish",
+				"--sleep-interval=30s",
+				"--sysfs=/host/sysfs-root",
+				"--kubelet-config-file=/path/testconfig.yaml",
+				"--podresources-socket=/path/testkubelet.sock",
+				"--ca-file=ca",
+				"--cert-file=crt",
+				"--key-file=key")
 
 			Convey("--no-publish is set and args.sources is set to appropriate values", func() {
 				So(args.NoPublish, ShouldBeTrue)
@@ -92,7 +105,6 @@ func TestArgsParse(t *testing.T) {
 				So(finderArgs.SysfsRoot, ShouldEqual, "/host/sysfs-root")
 				So(finderArgs.KubeletConfigFile, ShouldEqual, "/path/testconfig.yaml")
 				So(finderArgs.PodResourceSocketPath, ShouldEqual, "/path/testkubelet.sock")
-				So(err, ShouldBeNil)
 			})
 		})
 	})
