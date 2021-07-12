@@ -19,9 +19,9 @@ package resourcemonitor
 import (
 	"context"
 	"fmt"
-	"log"
 
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/klog/v2"
 	podresourcesapi "k8s.io/kubelet/pkg/apis/podresources/v1"
 )
 
@@ -36,9 +36,9 @@ func NewPodResourcesScanner(namespace string, podResourceClient podresourcesapi.
 		podResourceClient: podResourceClient,
 	}
 	if resourcemonitorInstance.namespace != "" {
-		log.Printf("watching namespace %q", resourcemonitorInstance.namespace)
+		klog.Infof("watching namespace %q", resourcemonitorInstance.namespace)
 	} else {
-		log.Printf("watching all namespaces")
+		klog.Infof("watching all namespaces")
 	}
 
 	return resourcemonitorInstance, nil

@@ -21,23 +21,22 @@ import (
 	"crypto/x509"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"os"
 	"time"
+
+	"k8s.io/klog/v2"
 
 	v1alpha1 "github.com/k8stopologyawareschedwg/noderesourcetopology-api/pkg/apis/topology/v1alpha1"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
-	"sigs.k8s.io/node-feature-discovery/pkg/dumpobject"
 	pb "sigs.k8s.io/node-feature-discovery/pkg/topologyupdater"
+	"sigs.k8s.io/node-feature-discovery/pkg/utils"
 	"sigs.k8s.io/node-feature-discovery/pkg/version"
 )
 
 var (
-	stdoutLogger = log.New(os.Stdout, "", log.LstdFlags)
-	stderrLogger = log.New(os.Stderr, "", log.LstdFlags)
-	nodeName     = os.Getenv("NODE_NAME")
+	nodeName = os.Getenv("NODE_NAME")
 )
 
 // Command line arguments
@@ -88,9 +87,9 @@ func NewTopologyUpdater(args Args, policy string) (NfdTopologyUpdater, error) {
 // Run nfdTopologyUpdater client. Returns if a fatal error is encountered, or, after
 // one request if OneShot is set to 'true' in the worker args.
 func (w *nfdTopologyUpdater) Update(zones v1alpha1.ZoneList) error {
-	stdoutLogger.Printf("Node Feature Discovery Topology Updater %s", version.Get())
-	stdoutLogger.Printf("NodeName: '%s'", nodeName)
-	stdoutLogger.Printf("Updating now received Zone: '%s'", dumpobject.DumpObject(zones))
+	klog.Infof("Node Feature Discovery Topology Updater %s", version.Get())
+	klog.Infof("NodeName: '%s'", nodeName)
+	utils.KlogDump(1, "Updating now received Zone:", "  ", zones)
 
 	// Connect to NFD master
 	err := w.connect()
@@ -201,11 +200,12 @@ func advertiseNodeTopology(client pb.NodeTopologyClient, zoneInfo v1alpha1.ZoneL
 		NodeName:         nodeName,
 		TopologyPolicies: []string{tmPolicy},
 	}
-	stdoutLogger.Printf("Sending NodeTopologyRequest to nfd-master: %v", dumpobject.DumpObject(topologyReq))
+
+	utils.KlogDump(1, "Sending NodeTopologyRequest to nfd-master:", "  ", topologyReq)
 
 	_, err := client.UpdateNodeTopology(ctx, topologyReq)
 	if err != nil {
-		stderrLogger.Printf("failed to set node topology CRD: %v", err)
+		klog.Warningf("failed to set node topology CRD: %v", err)
 		return err
 	}
 

@@ -19,7 +19,7 @@ package resourcemonitor
 import (
 	"context"
 	"fmt"
-	"log"
+	"k8s.io/klog/v2"
 	"time"
 
 	v1 "k8s.io/api/core/v1"
@@ -111,7 +111,7 @@ func (noderesourceData *nodeResources) Aggregate(podResData []PodResources) topo
 
 		costs, err := makeCostsPerNumaNode(noderesourceData.topo.Nodes, nodeID)
 		if err != nil {
-			log.Printf("cannot find costs for NUMA node %d: %v", nodeID, err)
+			klog.Infof("cannot find costs for NUMA node %d: %v", nodeID, err)
 		} else {
 			zone.Costs = topologyv1alpha1.CostList(costs)
 		}
@@ -143,7 +143,7 @@ func getContainerDevicesFromAllocatableResources(availRes *podresourcesapi.Alloc
 	for _, cpuID := range availRes.GetCpuIds() {
 		nodeID, ok := cpuIDToNodeIDMap[int(cpuID)]
 		if !ok {
-			log.Printf("cannot find the NUMA node for CPU %d", cpuID)
+			klog.Infof("cannot find the NUMA node for CPU %d", cpuID)
 			continue
 		}
 
@@ -174,12 +174,12 @@ func (noderesourceData *nodeResources) updateAllocatable(numaData map[int]map[v1
 		resName := string(ri.Name)
 		resMap, ok := noderesourceData.resourceID2NUMAID[resName]
 		if !ok {
-			log.Printf("unknown resource %q", ri.Name)
+			klog.Infof("unknown resource %q", ri.Name)
 			continue
 		}
 		nodeID, ok := resMap[resID]
 		if !ok {
-			log.Printf("unknown resource %q: %q", resName, resID)
+			klog.Infof("unknown resource %q: %q", resName, resID)
 			continue
 		}
 		numaData[nodeID][ri.Name].allocatable--

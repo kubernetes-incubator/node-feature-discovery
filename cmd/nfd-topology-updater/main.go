@@ -25,7 +25,6 @@ import (
 	"k8s.io/klog/v2"
 
 	v1alpha1 "github.com/k8stopologyawareschedwg/noderesourcetopology-api/pkg/apis/topology/v1alpha1"
-	"sigs.k8s.io/node-feature-discovery/pkg/dumpobject"
 	"sigs.k8s.io/node-feature-discovery/pkg/kubeconf"
 
 	topology "sigs.k8s.io/node-feature-discovery/pkg/nfd-topology-updater"
@@ -97,7 +96,7 @@ func main() {
 			klog.Infof("Scanning\n")
 
 			podResources, err := resScan.Scan()
-			klog.Infof("podResources are: %v\n", podResources)
+			utils.KlogDump(1, "podResources are", "  ", podResources)
 			if err != nil {
 				klog.Warningf("Scan failed: %v\n", err)
 				continue
@@ -105,7 +104,7 @@ func main() {
 
 			zones = resAggr.Aggregate(podResources)
 			zonesChannel <- zones
-			klog.Infof("After aggregating resources identified zones are:%v", dumpobject.DumpObject(zones))
+			utils.KlogDump(1, "After aggregating resources identified zones are", "  ", zones)
 
 			time.Sleep(resourcemonitorArgs.SleepInterval)
 		}
