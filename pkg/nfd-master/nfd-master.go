@@ -437,7 +437,7 @@ func (m *nfdMaster) UpdateNodeTopology(c context.Context, r *topologypb.NodeTopo
 		klog.Infof("received CR updation request for node %q", r.NodeName)
 	}
 	if !m.args.NoPublish {
-		err := m.updateCRD(r.NodeName, r.TopologyPolicies, r.Zones, "default")
+		err := m.updateCR(r.NodeName, r.TopologyPolicies, r.Zones, "default")
 		if err != nil {
 			klog.Errorf("failed to advertise labels: %v", err)
 			return &topologypb.NodeTopologyResponse{}, err
@@ -627,7 +627,7 @@ func updateMap(data []*topologypb.CostInfo) []v1alpha1.CostInfo {
 	return ret
 }
 
-func modifyCRD(topoUpdaterZones []*topologypb.Zone) []v1alpha1.Zone {
+func modifyCR(topoUpdaterZones []*topologypb.Zone) []v1alpha1.Zone {
 
 	zones := make([]v1alpha1.Zone, 0)
 	for _, zone := range topoUpdaterZones {
@@ -652,13 +652,13 @@ func modifyCRD(topoUpdaterZones []*topologypb.Zone) []v1alpha1.Zone {
 
 }
 
-func (m *nfdMaster) updateCRD(hostname string, tmpolicy []string, topoUpdaterZones []*topologypb.Zone, namespace string) error {
+func (m *nfdMaster) updateCR(hostname string, tmpolicy []string, topoUpdaterZones []*topologypb.Zone, namespace string) error {
 	cli, err := m.apihelper.GetTopologyClient()
 	if err != nil {
 		return err
 	}
 
-	zones := modifyCRD(topoUpdaterZones)
+	zones := modifyCR(topoUpdaterZones)
 
 	nrt, err := cli.TopologyV1alpha1().NodeResourceTopologies(namespace).Get(context.TODO(), hostname, metav1.GetOptions{})
 	if errors.IsNotFound(err) {
@@ -688,6 +688,6 @@ func (m *nfdMaster) updateCRD(hostname string, tmpolicy []string, topoUpdaterZon
 	if err != nil {
 		return fmt.Errorf("Failed to update v1alpha1.NodeResourceTopology!:%v", err)
 	}
-	utils.KlogDump(2, "CRD instance updated resTopo:", "  ", nrtUpdated)
+	utils.KlogDump(2, "CR instance updated resTopo:", "  ", nrtUpdated)
 	return nil
 }

@@ -124,7 +124,7 @@ func TestRunTls(t *testing.T) {
 	ctx := setupTest(masterArgs)
 	defer teardownTest(ctx)
 	Convey("When running nfd-worker against nfd-master with mutual TLS auth enabled", t, func() {
-		Convey("When publishing CRDs obtained from Zones", func() {
+		Convey("When publishing CRs obtained from Zones", func() {
 			resourceInfo := v1alpha1.ResourceInfoList{
 				v1alpha1.ResourceInfo{
 					Name:        "cpu",

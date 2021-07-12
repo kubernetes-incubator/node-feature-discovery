@@ -170,7 +170,7 @@ func (w *nfdTopologyUpdater) disconnect() {
 	w.client = nil
 }
 
-// advertiseNodeTopology advertises the topology CRD to a Kubernetes node
+// advertiseNodeTopology advertises the topology CR to a Kubernetes node
 // via the NFD server.
 func advertiseNodeTopology(client pb.NodeTopologyClient, zoneInfo v1alpha1.ZoneList, tmPolicy string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -205,7 +205,7 @@ func advertiseNodeTopology(client pb.NodeTopologyClient, zoneInfo v1alpha1.ZoneL
 
 	_, err := client.UpdateNodeTopology(ctx, topologyReq)
 	if err != nil {
-		klog.Warningf("failed to set node topology CRD: %v", err)
+		klog.Warningf("failed to set node topology CR: %v", err)
 		return err
 	}
 
