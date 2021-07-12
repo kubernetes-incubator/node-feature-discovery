@@ -49,10 +49,10 @@ type resourceData struct {
 	capacity    int64
 }
 
-func NewResourcesAggregator(sysfsRoot string, podResourceClient podresourcesapi.PodResourcesListerClient) (ResourcesAggregator, error) {
+func NewResourcesAggregator(fsRoot string, podResourceClient podresourcesapi.PodResourcesListerClient) (ResourcesAggregator, error) {
 	var err error
 
-	topo, err := ghw.Topology(ghw.WithChroot(sysfsRoot))
+	topo, err := ghw.Topology(ghw.WithChroot(fsRoot))
 	if err != nil {
 		return nil, err
 	}

@@ -28,7 +28,7 @@ type Args struct {
 	PodResourceSocketPath string
 	SleepInterval         time.Duration
 	Namespace             string
-	SysfsRoot             string
+	FsRoot                string
 	KubeletConfigFile     string
 }
 

@@ -85,7 +85,7 @@ func main() {
 	// zonesChannel := make(chan v1alpha1.ZoneList)
 	var zones v1alpha1.ZoneList
 
-	resAggr, err := resourcemonitor.NewResourcesAggregator(resourcemonitorArgs.SysfsRoot, podResClient)
+	resAggr, err := resourcemonitor.NewResourcesAggregator(resourcemonitorArgs.FsRoot, podResClient)
 	if err != nil {
 		klog.Fatalf("Failed to obtain node resource information: %v", err)
 	}
@@ -156,8 +156,8 @@ func initFlags(flagset *flag.FlagSet) (*topology.Args, *resourcemonitor.Args) {
 		"Kubelet config file path.")
 	flagset.StringVar(&resourcemonitorArgs.PodResourceSocketPath, "podresources-socket", "/podresources/kubelet.sock",
 		"Pod Resource Socket path to use.")
-	flagset.StringVar(&resourcemonitorArgs.SysfsRoot, "sysfs", "/host",
-		"Mount point of the sysfs.")
+	flagset.StringVar(&resourcemonitorArgs.FsRoot, "fsroot", "/host",
+		"Mount point of the filesystem root.")
 	flagset.StringVar(&args.Server, "server", "localhost:8080",
 		"NFD server address to connecto to.")
 	flagset.StringVar(&args.ServerNameOverride, "server-name-override", "",
