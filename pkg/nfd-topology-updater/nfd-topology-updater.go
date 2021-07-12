@@ -175,23 +175,24 @@ func (w *nfdTopologyUpdater) disconnect() {
 func advertiseNodeTopology(client pb.NodeTopologyClient, zoneInfo v1alpha1.ZoneList, tmPolicy string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	zones := make([]*pb.Zone, 0)
-	for _, zone := range zoneInfo {
-		resInfo := make([]*pb.ResourceInfo, 0)
-		for _, info := range zone.Resources {
-			resInfo = append(resInfo, &pb.ResourceInfo{
+	zones := make([]*pb.Zone, len(zoneInfo))
+	for i, zone := range zoneInfo {
+		resInfo := make([]*pb.ResourceInfo, len(zone.Resources))
+		for j, info := range zone.Resources {
+			resInfo[j] = &pb.ResourceInfo{
 				Name:        info.Name,
 				Allocatable: info.Allocatable.String(),
 				Capacity:    info.Capacity.String(),
-			})
+			}
 		}
 
-		zones = append(zones, &pb.Zone{
+		zones[i] = &pb.Zone{
 			Name:      zone.Name,
 			Type:      zone.Type,
+			Parent:    zone.Parent,
 			Resources: resInfo,
 			Costs:     updateMap(zone.Costs),
-		})
+		}
 	}
 
 	topologyReq := &pb.NodeTopologyRequest{
@@ -212,12 +213,12 @@ func advertiseNodeTopology(client pb.NodeTopologyClient, zoneInfo v1alpha1.ZoneL
 	return nil
 }
 func updateMap(data []v1alpha1.CostInfo) []*pb.CostInfo {
-	ret := make([]*pb.CostInfo, 0)
-	for _, cost := range data {
-		ret = append(ret, &pb.CostInfo{
+	ret := make([]*pb.CostInfo, len(data))
+	for i, cost := range data {
+		ret[i] = &pb.CostInfo{
 			Name:  cost.Name,
 			Value: int32(cost.Value),
-		})
+		}
 	}
 	return ret
 }

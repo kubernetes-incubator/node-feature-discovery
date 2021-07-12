@@ -617,39 +617,37 @@ func stringToNsNames(cslist, ns string) []string {
 }
 
 func updateMap(data []*topologypb.CostInfo) []v1alpha1.CostInfo {
-	ret := make([]v1alpha1.CostInfo, 0)
-	for _, cost := range data {
-		ret = append(ret, v1alpha1.CostInfo{
+	ret := make([]v1alpha1.CostInfo, len(data))
+	for i, cost := range data {
+		ret[i] = v1alpha1.CostInfo{
 			Name:  cost.Name,
 			Value: int(cost.Value),
-		})
+		}
 	}
 	return ret
 }
 
 func modifyCR(topoUpdaterZones []*topologypb.Zone) []v1alpha1.Zone {
-
-	zones := make([]v1alpha1.Zone, 0)
-	for _, zone := range topoUpdaterZones {
-		resInfo := make([]v1alpha1.ResourceInfo, 0)
-		for _, info := range zone.Resources {
-			resInfo = append(resInfo, v1alpha1.ResourceInfo{
+	zones := make([]v1alpha1.Zone, len(topoUpdaterZones))
+	for i, zone := range topoUpdaterZones {
+		resInfo := make([]v1alpha1.ResourceInfo, len(zone.Resources))
+		for j, info := range zone.Resources {
+			resInfo[j] = v1alpha1.ResourceInfo{
 				Name:        info.Name,
 				Allocatable: intstr.FromString(info.Allocatable),
 				Capacity:    intstr.FromString(info.Capacity),
-			})
+			}
 		}
 
-		zones = append(zones, v1alpha1.Zone{
+		zones[i] = v1alpha1.Zone{
 			Name:      zone.Name,
 			Type:      zone.Type,
 			Parent:    zone.Parent,
 			Costs:     updateMap(zone.Costs),
 			Resources: resInfo,
-		})
+		}
 	}
 	return zones
-
 }
 
 func (m *nfdMaster) updateCR(hostname string, tmpolicy []string, topoUpdaterZones []*topologypb.Zone, namespace string) error {
