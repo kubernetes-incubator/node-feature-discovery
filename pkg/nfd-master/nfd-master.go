@@ -87,6 +87,7 @@ type Args struct {
 	Prune          bool
 	VerifyNodeName bool
 	ResourceLabels utils.StringSetVal
+	NRTNamespace   string
 }
 
 type NfdMaster interface {
@@ -437,7 +438,7 @@ func (m *nfdMaster) UpdateNodeTopology(c context.Context, r *topologypb.NodeTopo
 		klog.Infof("received CR updation request for node %q", r.NodeName)
 	}
 	if !m.args.NoPublish {
-		err := m.updateCR(r.NodeName, r.TopologyPolicies, r.Zones, "default")
+		err := m.updateCR(r.NodeName, r.TopologyPolicies, r.Zones, m.args.NRTNamespace)
 		if err != nil {
 			klog.Errorf("failed to advertise labels: %v", err)
 			return &topologypb.NodeTopologyResponse{}, err
