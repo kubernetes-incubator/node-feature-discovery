@@ -54,16 +54,21 @@ type NfdTopologyUpdater interface {
 	Update(v1alpha1.ZoneList) error
 }
 
+type staticNodeInfo struct {
+	args     Args
+	tmPolicy string
+}
+
 type nfdTopologyUpdater struct {
-	args       Args
+	nodeInfo   *staticNodeInfo
 	clientConn *grpc.ClientConn
 	client     pb.NodeTopologyClient
-	tmPolicy   string
 }
 
 // Create new NewTopologyUpdater instance.
 func NewTopologyUpdater(args Args, policy string) (NfdTopologyUpdater, error) {
-	nfd := &nfdTopologyUpdater{
+	nfd := &nfdTopologyUpdater{}
+	nfd.nodeInfo = &staticNodeInfo{
 		args:     args,
 		tmPolicy: policy,
 	}
@@ -102,7 +107,7 @@ func (w *nfdTopologyUpdater) Update(zones v1alpha1.ZoneList) error {
 		return nil
 	}
 
-	err = advertiseNodeTopology(w.client, zones, w.tmPolicy)
+	err = advertiseNodeTopology(w.client, zones, w.nodeInfo.tmPolicy)
 	if err != nil {
 		return fmt.Errorf("failed to advertise node topology: %s", err.Error())
 	}
@@ -113,7 +118,7 @@ func (w *nfdTopologyUpdater) Update(zones v1alpha1.ZoneList) error {
 // connect creates a client connection to the NFD master
 func (w *nfdTopologyUpdater) connect() error {
 	// Return a dummy connection in case of dry-run
-	if w.args.NoPublish {
+	if w.nodeInfo.args.NoPublish {
 		return nil
 	}
 
@@ -126,32 +131,32 @@ func (w *nfdTopologyUpdater) connect() error {
 	dialCtx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	dialOpts := []grpc.DialOption{grpc.WithBlock()}
-	if w.args.CaFile != "" || w.args.CertFile != "" || w.args.KeyFile != "" {
+	if w.nodeInfo.args.CaFile != "" || w.nodeInfo.args.CertFile != "" || w.nodeInfo.args.KeyFile != "" {
 		// Load client cert for client authentication
-		cert, err := tls.LoadX509KeyPair(w.args.CertFile, w.args.KeyFile)
+		cert, err := tls.LoadX509KeyPair(w.nodeInfo.args.CertFile, w.nodeInfo.args.KeyFile)
 		if err != nil {
 			return fmt.Errorf("failed to load client certificate: %v", err)
 		}
 		// Load CA cert for server cert verification
-		caCert, err := ioutil.ReadFile(w.args.CaFile)
+		caCert, err := ioutil.ReadFile(w.nodeInfo.args.CaFile)
 		if err != nil {
 			return fmt.Errorf("failed to read root certificate file: %v", err)
 		}
 		caPool := x509.NewCertPool()
 		if ok := caPool.AppendCertsFromPEM(caCert); !ok {
-			return fmt.Errorf("failed to add certificate from '%s'", w.args.CaFile)
+			return fmt.Errorf("failed to add certificate from '%s'", w.nodeInfo.args.CaFile)
 		}
 		// Create TLS config
 		tlsConfig := &tls.Config{
 			Certificates: []tls.Certificate{cert},
 			RootCAs:      caPool,
-			ServerName:   w.args.ServerNameOverride,
+			ServerName:   w.nodeInfo.args.ServerNameOverride,
 		}
 		dialOpts = append(dialOpts, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
 	} else {
 		dialOpts = append(dialOpts, grpc.WithInsecure())
 	}
-	conn, err := grpc.DialContext(dialCtx, w.args.Server, dialOpts...)
+	conn, err := grpc.DialContext(dialCtx, w.nodeInfo.args.Server, dialOpts...)
 	if err != nil {
 		return err
 	}
