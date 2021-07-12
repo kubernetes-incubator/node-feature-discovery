@@ -82,7 +82,7 @@ func main() {
 	// CAUTION: these resources are expected to change rarely - if ever.
 	// So we are intentionally do this once during the process lifecycle.
 	// TODO: Obtain node resources dynamically from the podresource API
-	zonesChannel := make(chan v1alpha1.ZoneList)
+	// zonesChannel := make(chan v1alpha1.ZoneList)
 	var zones v1alpha1.ZoneList
 
 	resAggr, err := resourcemonitor.NewResourcesAggregator(resourcemonitorArgs.SysfsRoot, podResClient)
@@ -91,40 +91,32 @@ func main() {
 	}
 
 	klog.Infof("resAggr is: %v\n", resAggr)
-	go func() {
-		for {
-			klog.Infof("Scanning\n")
-
-			podResources, err := resScan.Scan()
-			utils.KlogDump(1, "podResources are", "  ", podResources)
-			if err != nil {
-				klog.Warningf("Scan failed: %v\n", err)
-				continue
-			}
-
-			zones = resAggr.Aggregate(podResources)
-			zonesChannel <- zones
-			utils.KlogDump(1, "After aggregating resources identified zones are", "  ", zones)
-
-			time.Sleep(resourcemonitorArgs.SleepInterval)
-		}
-	}()
 
 	// Get new TopologyUpdater instance
 	instance, err := topology.NewTopologyUpdater(*args, tmPolicy)
 	if err != nil {
 		klog.Exitf("failed to initialize TopologyUpdater instance: %v", err)
 	}
-	for {
 
-		zonesValue := <-zonesChannel
-		klog.Infof("Received value on ZoneChannel\n")
-		if err = instance.Update(zonesValue); err != nil {
+	// go func() {
+	for {
+		klog.Infof("Scanning\n")
+		podResources, err := resScan.Scan()
+		utils.KlogDump(1, "podResources are", "  ", podResources)
+		if err != nil {
+			klog.Warningf("Scan failed: %v\n", err)
+			continue
+		}
+		zones = resAggr.Aggregate(podResources)
+		utils.KlogDump(1, "After aggregating resources identified zones are", "  ", zones)
+		if err = instance.Update(zones); err != nil {
 			klog.Exit(err)
 		}
 		if args.Oneshot {
 			break
 		}
+
+		time.Sleep(resourcemonitorArgs.SleepInterval)
 	}
 
 }
