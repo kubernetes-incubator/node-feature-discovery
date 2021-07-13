@@ -14,22 +14,17 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package nfdtopologyupdater
+package topologyupdater
 
 import (
-	"crypto/tls"
-	"crypto/x509"
 	"fmt"
-	"io/ioutil"
-	"os"
 	"time"
 
 	"k8s.io/klog/v2"
 
 	v1alpha1 "github.com/k8stopologyawareschedwg/noderesourcetopology-api/pkg/apis/topology/v1alpha1"
 	"golang.org/x/net/context"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
+	nfdclient "sigs.k8s.io/node-feature-discovery/pkg/nfd-client"
 	"sigs.k8s.io/node-feature-discovery/pkg/podres"
 	"sigs.k8s.io/node-feature-discovery/pkg/resourcemonitor"
 	pb "sigs.k8s.io/node-feature-discovery/pkg/topologyupdater"
@@ -37,24 +32,15 @@ import (
 	"sigs.k8s.io/node-feature-discovery/pkg/version"
 )
 
-var (
-	nodeName = os.Getenv("NODE_NAME")
-)
-
 // Command line arguments
 type Args struct {
-	CaFile             string
-	CertFile           string
-	KeyFile            string
-	NoPublish          bool
-	Oneshot            bool
-	Server             string
-	ServerNameOverride string
+	nfdclient.Args
+	NoPublish bool
+	Oneshot   bool
 }
 
 type NfdTopologyUpdater interface {
-	Run() error
-	Stop()
+	nfdclient.NfdClient
 	Update(v1alpha1.ZoneList) error
 }
 
@@ -65,37 +51,29 @@ type staticNodeInfo struct {
 }
 
 type nfdTopologyUpdater struct {
-	nodeInfo   *staticNodeInfo
-	certWatch  *utils.FsWatcher
-	clientConn *grpc.ClientConn
-	client     pb.NodeTopologyClient
-	stop       chan struct{} // channel for signaling stop
+	nfdclient.NfdBaseClient
+	nodeInfo  *staticNodeInfo
+	certWatch *utils.FsWatcher
+	client    pb.NodeTopologyClient
+	stop      chan struct{} // channel for signaling stop
 }
 
 // Create new NewTopologyUpdater instance.
-func NewTopologyUpdater(args Args, resourcemonitorArgs resourcemonitor.Args, policy string) (NfdTopologyUpdater, error) {
+func NewTopologyUpdater(args *Args, resourcemonitorArgs *resourcemonitor.Args, policy string) (NfdTopologyUpdater, error) {
+	base, err := nfdclient.NewNfdBaseClient(&args.Args)
+	if err != nil {
+		return nil, err
+	}
+
 	nfd := &nfdTopologyUpdater{
+		NfdBaseClient: base,
 		nodeInfo: &staticNodeInfo{
-			args:                args,
-			resourcemonitorArgs: resourcemonitorArgs,
+			args:                *args,
+			resourcemonitorArgs: *resourcemonitorArgs,
 			tmPolicy:            policy,
 		},
 		stop: make(chan struct{}, 1),
 	}
-
-	// Check TLS related args
-	if args.CertFile != "" || args.KeyFile != "" || args.CaFile != "" {
-		if args.CertFile == "" {
-			return nfd, fmt.Errorf("--cert-file needs to be specified alongside --key-file and --ca-file")
-		}
-		if args.KeyFile == "" {
-			return nfd, fmt.Errorf("--key-file needs to be specified alongside --cert-file and --ca-file")
-		}
-		if args.CaFile == "" {
-			return nfd, fmt.Errorf("--ca-file needs to be specified alongside --cert-file and --key-file")
-		}
-	}
-
 	return nfd, nil
 }
 
@@ -103,7 +81,7 @@ func NewTopologyUpdater(args Args, resourcemonitorArgs resourcemonitor.Args, pol
 // one request if OneShot is set to 'true' in the updater args.
 func (w *nfdTopologyUpdater) Run() error {
 	klog.Infof("Node Feature Discovery Topology Updater %s", version.Get())
-	klog.Infof("NodeName: '%s'", nodeName)
+	klog.Infof("NodeName: '%s'", nfdclient.NodeName)
 
 	podResClient, err := podres.GetPodResClient(w.nodeInfo.resourcemonitorArgs.PodResourceSocketPath)
 	if err != nil {
@@ -162,8 +140,8 @@ func (w *nfdTopologyUpdater) Run() error {
 
 		case <-w.certWatch.Events:
 			klog.Infof("TLS certificate update, renewing connection to nfd-master")
-			w.disconnect()
-			if err := w.connect(); err != nil {
+			w.Disconnect()
+			if err := w.Connect(); err != nil {
 				return err
 			}
 
@@ -178,17 +156,17 @@ func (w *nfdTopologyUpdater) Run() error {
 
 func (w *nfdTopologyUpdater) Update(zones v1alpha1.ZoneList) error {
 	// Connect to NFD master
-	err := w.connect()
+	err := w.Connect()
 	if err != nil {
 		return fmt.Errorf("failed to connect: %v", err)
 	}
-	defer w.disconnect()
+	defer w.Disconnect()
 	// Update the node with the feature labels.
 	if w.client == nil {
 		return nil
 	}
 
-	err = advertiseNodeTopology(w.client, zones, w.nodeInfo.tmPolicy)
+	err = advertiseNodeTopology(w.client, zones, w.nodeInfo.tmPolicy, nfdclient.NodeName())
 	if err != nil {
 		return fmt.Errorf("failed to advertise node topology: %s", err.Error())
 	}
@@ -205,70 +183,28 @@ func (w *nfdTopologyUpdater) Stop() {
 }
 
 // connect creates a client connection to the NFD master
-func (w *nfdTopologyUpdater) connect() error {
+func (w *nfdTopologyUpdater) Connect() error {
 	// Return a dummy connection in case of dry-run
 	if w.nodeInfo.args.NoPublish {
 		return nil
 	}
 
-	// Check that if a connection already exists
-	if w.clientConn != nil {
-		return fmt.Errorf("client connection already exists")
-	}
-
-	// Dial and create a client
-	dialCtx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	defer cancel()
-	dialOpts := []grpc.DialOption{grpc.WithBlock()}
-	if w.nodeInfo.args.CaFile != "" || w.nodeInfo.args.CertFile != "" || w.nodeInfo.args.KeyFile != "" {
-		// Load client cert for client authentication
-		cert, err := tls.LoadX509KeyPair(w.nodeInfo.args.CertFile, w.nodeInfo.args.KeyFile)
-		if err != nil {
-			return fmt.Errorf("failed to load client certificate: %v", err)
-		}
-		// Load CA cert for server cert verification
-		caCert, err := ioutil.ReadFile(w.nodeInfo.args.CaFile)
-		if err != nil {
-			return fmt.Errorf("failed to read root certificate file: %v", err)
-		}
-		caPool := x509.NewCertPool()
-		if ok := caPool.AppendCertsFromPEM(caCert); !ok {
-			return fmt.Errorf("failed to add certificate from '%s'", w.nodeInfo.args.CaFile)
-		}
-		// Create TLS config
-		tlsConfig := &tls.Config{
-			Certificates: []tls.Certificate{cert},
-			RootCAs:      caPool,
-			ServerName:   w.nodeInfo.args.ServerNameOverride,
-		}
-		dialOpts = append(dialOpts, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
-	} else {
-		dialOpts = append(dialOpts, grpc.WithInsecure())
-	}
-	klog.Infof("connecting to nfd-master at %s ...", w.nodeInfo.args.Server)
-	conn, err := grpc.DialContext(dialCtx, w.nodeInfo.args.Server, dialOpts...)
-	if err != nil {
+	if err := w.NfdBaseClient.Connect(); err != nil {
 		return err
 	}
-	w.clientConn = conn
-	w.client = pb.NewNodeTopologyClient(conn)
+	w.client = pb.NewNodeTopologyClient(w.ClientConn())
 
 	return nil
 }
 
 // disconnect closes the connection to NFD master
-func (w *nfdTopologyUpdater) disconnect() {
-	if w.clientConn != nil {
-		klog.Infof("closing connection to nfd-master ...")
-		w.clientConn.Close()
-	}
-	w.clientConn = nil
-	w.client = nil
+func (w *nfdTopologyUpdater) Disconnect() {
+	w.NfdBaseClient.Disconnect()
 }
 
 // advertiseNodeTopology advertises the topology CR to a Kubernetes node
 // via the NFD server.
-func advertiseNodeTopology(client pb.NodeTopologyClient, zoneInfo v1alpha1.ZoneList, tmPolicy string) error {
+func advertiseNodeTopology(client pb.NodeTopologyClient, zoneInfo v1alpha1.ZoneList, tmPolicy string, nodeName string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	zones := make([]*pb.Zone, len(zoneInfo))

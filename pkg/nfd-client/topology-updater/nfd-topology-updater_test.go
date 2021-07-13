@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package nfdtopologyupdater_test
+package topologyupdater_test
 
 import (
 	"fmt"
@@ -25,8 +25,9 @@ import (
 	v1alpha1 "github.com/k8stopologyawareschedwg/noderesourcetopology-api/pkg/apis/topology/v1alpha1"
 	. "github.com/smartystreets/goconvey/convey"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	nfdclient "sigs.k8s.io/node-feature-discovery/pkg/nfd-client"
+	u "sigs.k8s.io/node-feature-discovery/pkg/nfd-client/topology-updater"
 	nfdmaster "sigs.k8s.io/node-feature-discovery/pkg/nfd-master"
-	u "sigs.k8s.io/node-feature-discovery/pkg/nfd-topology-updater"
 	"sigs.k8s.io/node-feature-discovery/pkg/resourcemonitor"
 	"sigs.k8s.io/node-feature-discovery/test/data"
 )
@@ -75,9 +76,9 @@ func TestNewTopologyUpdater(t *testing.T) {
 	Convey("When initializing new NfdTopologyUpdater instance", t, func() {
 		Convey("When one of --cert-file, --key-file or --ca-file is missing", func() {
 			tmPolicy := "fake-topology-manager-policy"
-			_, err := u.NewTopologyUpdater(u.Args{CertFile: "crt", KeyFile: "key"}, resourcemonitor.Args{}, tmPolicy)
-			_, err2 := u.NewTopologyUpdater(u.Args{KeyFile: "key", CaFile: "ca"}, resourcemonitor.Args{}, tmPolicy)
-			_, err3 := u.NewTopologyUpdater(u.Args{CertFile: "crt", CaFile: "ca"}, resourcemonitor.Args{}, tmPolicy)
+			_, err := u.NewTopologyUpdater(&u.Args{Args: nfdclient.Args{CertFile: "crt", KeyFile: "key"}}, &resourcemonitor.Args{}, tmPolicy)
+			_, err2 := u.NewTopologyUpdater(&u.Args{Args: nfdclient.Args{KeyFile: "key", CaFile: "ca"}}, &resourcemonitor.Args{}, tmPolicy)
+			_, err3 := u.NewTopologyUpdater(&u.Args{Args: nfdclient.Args{CertFile: "crt", CaFile: "ca"}}, &resourcemonitor.Args{}, tmPolicy)
 			Convey("An error should be returned", func() {
 				So(err, ShouldNotBeNil)
 				So(err2, ShouldNotBeNil)
@@ -106,7 +107,12 @@ func TestUpdate(t *testing.T) {
 	defer teardownTest(ctx)
 	Convey("When running nfd-topology-updater against nfd-master", t, func() {
 		Convey("When running as a Oneshot job with Zones", func() {
-			updater, _ := u.NewTopologyUpdater(u.Args{Oneshot: true, Server: "localhost:8192"}, resourcemonitor.Args{}, "fake-topology-manager-policy")
+			args := &u.Args{
+				Oneshot: true,
+				Args: nfdclient.Args{
+					Server: "localhost:8192"},
+			}
+			updater, _ := u.NewTopologyUpdater(args, &resourcemonitor.Args{}, "fake-topology-manager-policy")
 			err := updater.Update(zones)
 			Convey("No error should be returned", func() {
 				So(err, ShouldBeNil)
@@ -141,13 +147,17 @@ func TestRunTls(t *testing.T) {
 				},
 			}
 			updaterArgs := u.Args{
-				CaFile:             data.FilePath("ca.crt"),
-				CertFile:           data.FilePath("nfd-test-topology-updater.crt"),
-				KeyFile:            data.FilePath("nfd-test-topology-updater.key"),
-				Oneshot:            true,
-				Server:             "localhost:8192",
-				ServerNameOverride: "nfd-test-master"}
-			updater, _ := u.NewTopologyUpdater(updaterArgs, resourcemonitor.Args{}, "fake-topology-manager-policy")
+				Args: nfdclient.Args{
+					CaFile:             data.FilePath("ca.crt"),
+					CertFile:           data.FilePath("nfd-test-topology-updater.crt"),
+					KeyFile:            data.FilePath("nfd-test-topology-updater.key"),
+					Server:             "localhost:8192",
+					ServerNameOverride: "nfd-test-master",
+				},
+				Oneshot: true,
+			}
+
+			updater, _ := u.NewTopologyUpdater(&updaterArgs, &resourcemonitor.Args{}, "fake-topology-manager-policy")
 			err := updater.Update(zones)
 			Convey("No error should be returned", func() {
 				So(err, ShouldBeNil)

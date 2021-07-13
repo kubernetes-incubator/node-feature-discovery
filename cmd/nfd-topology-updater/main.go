@@ -26,7 +26,7 @@ import (
 
 	"sigs.k8s.io/node-feature-discovery/pkg/kubeconf"
 
-	topology "sigs.k8s.io/node-feature-discovery/pkg/nfd-topology-updater"
+	topology "sigs.k8s.io/node-feature-discovery/pkg/nfd-client/topology-updater"
 
 	"sigs.k8s.io/node-feature-discovery/pkg/resourcemonitor"
 	"sigs.k8s.io/node-feature-discovery/pkg/topologypolicy"
@@ -67,7 +67,7 @@ func main() {
 	klog.Infof("Detected kubelet Topology Manager policy %q", tmPolicy)
 
 	// Get new TopologyUpdater instance
-	instance, err := topology.NewTopologyUpdater(*args, *resourcemonitorArgs, tmPolicy)
+	instance, err := topology.NewTopologyUpdater(args, resourcemonitorArgs, tmPolicy)
 	if err != nil {
 		klog.Exitf("failed to initialize TopologyUpdater instance: %v", err)
 	}
