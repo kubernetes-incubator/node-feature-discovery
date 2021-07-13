@@ -24,11 +24,9 @@ import (
 
 	"k8s.io/klog/v2"
 
-	v1alpha1 "github.com/k8stopologyawareschedwg/noderesourcetopology-api/pkg/apis/topology/v1alpha1"
 	"sigs.k8s.io/node-feature-discovery/pkg/kubeconf"
 
 	topology "sigs.k8s.io/node-feature-discovery/pkg/nfd-topology-updater"
-	"sigs.k8s.io/node-feature-discovery/pkg/podres"
 
 	"sigs.k8s.io/node-feature-discovery/pkg/resourcemonitor"
 	"sigs.k8s.io/node-feature-discovery/pkg/topologypolicy"
@@ -68,57 +66,15 @@ func main() {
 	tmPolicy := string(topologypolicy.DetectTopologyPolicy(klConfig.TopologyManagerPolicy, klConfig.TopologyManagerScope))
 	klog.Infof("Detected kubelet Topology Manager policy %q", tmPolicy)
 
-	podResClient, err := podres.GetPodResClient(resourcemonitorArgs.PodResourceSocketPath)
-	if err != nil {
-		klog.Fatalf("Failed to get PodResource Client: %v", err)
-	}
-	var resScan resourcemonitor.ResourcesScanner
-
-	resScan, err = resourcemonitor.NewPodResourcesScanner(resourcemonitorArgs.Namespace, podResClient)
-	if err != nil {
-		klog.Fatalf("Failed to initialize ResourceMonitor instance: %v", err)
-	}
-
-	// CAUTION: these resources are expected to change rarely - if ever.
-	// So we are intentionally do this once during the process lifecycle.
-	// TODO: Obtain node resources dynamically from the podresource API
-	// zonesChannel := make(chan v1alpha1.ZoneList)
-	var zones v1alpha1.ZoneList
-
-	resAggr, err := resourcemonitor.NewResourcesAggregator(resourcemonitorArgs.FsRoot, podResClient)
-	if err != nil {
-		klog.Fatalf("Failed to obtain node resource information: %v", err)
-	}
-
-	klog.Infof("resAggr is: %v\n", resAggr)
-
 	// Get new TopologyUpdater instance
-	instance, err := topology.NewTopologyUpdater(*args, tmPolicy)
+	instance, err := topology.NewTopologyUpdater(*args, *resourcemonitorArgs, tmPolicy)
 	if err != nil {
 		klog.Exitf("failed to initialize TopologyUpdater instance: %v", err)
 	}
 
-	// go func() {
-	for {
-		klog.Infof("Scanning\n")
-		podResources, err := resScan.Scan()
-		utils.KlogDump(1, "podResources are", "  ", podResources)
-		if err != nil {
-			klog.Warningf("Scan failed: %v\n", err)
-			continue
-		}
-		zones = resAggr.Aggregate(podResources)
-		utils.KlogDump(1, "After aggregating resources identified zones are", "  ", zones)
-		if err = instance.Update(zones); err != nil {
-			klog.Exit(err)
-		}
-		if args.Oneshot {
-			break
-		}
-
-		time.Sleep(resourcemonitorArgs.SleepInterval)
+	if err = instance.Run(); err != nil {
+		klog.Exit(err)
 	}
-
 }
 
 func parseArgs(flags *flag.FlagSet, osArgs ...string) (*topology.Args, *resourcemonitor.Args) {

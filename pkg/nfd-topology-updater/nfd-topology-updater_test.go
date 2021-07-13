@@ -27,6 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	nfdmaster "sigs.k8s.io/node-feature-discovery/pkg/nfd-master"
 	u "sigs.k8s.io/node-feature-discovery/pkg/nfd-topology-updater"
+	"sigs.k8s.io/node-feature-discovery/pkg/resourcemonitor"
 	"sigs.k8s.io/node-feature-discovery/test/data"
 )
 
@@ -74,9 +75,9 @@ func TestNewTopologyUpdater(t *testing.T) {
 	Convey("When initializing new NfdTopologyUpdater instance", t, func() {
 		Convey("When one of --cert-file, --key-file or --ca-file is missing", func() {
 			tmPolicy := "fake-topology-manager-policy"
-			_, err := u.NewTopologyUpdater(u.Args{CertFile: "crt", KeyFile: "key"}, tmPolicy)
-			_, err2 := u.NewTopologyUpdater(u.Args{KeyFile: "key", CaFile: "ca"}, tmPolicy)
-			_, err3 := u.NewTopologyUpdater(u.Args{CertFile: "crt", CaFile: "ca"}, tmPolicy)
+			_, err := u.NewTopologyUpdater(u.Args{CertFile: "crt", KeyFile: "key"}, resourcemonitor.Args{}, tmPolicy)
+			_, err2 := u.NewTopologyUpdater(u.Args{KeyFile: "key", CaFile: "ca"}, resourcemonitor.Args{}, tmPolicy)
+			_, err3 := u.NewTopologyUpdater(u.Args{CertFile: "crt", CaFile: "ca"}, resourcemonitor.Args{}, tmPolicy)
 			Convey("An error should be returned", func() {
 				So(err, ShouldNotBeNil)
 				So(err2, ShouldNotBeNil)
@@ -105,7 +106,7 @@ func TestUpdate(t *testing.T) {
 	defer teardownTest(ctx)
 	Convey("When running nfd-topology-updater against nfd-master", t, func() {
 		Convey("When running as a Oneshot job with Zones", func() {
-			updater, _ := u.NewTopologyUpdater(u.Args{Oneshot: true, Server: "localhost:8192"}, "fake-topology-manager-policy")
+			updater, _ := u.NewTopologyUpdater(u.Args{Oneshot: true, Server: "localhost:8192"}, resourcemonitor.Args{}, "fake-topology-manager-policy")
 			err := updater.Update(zones)
 			Convey("No error should be returned", func() {
 				So(err, ShouldBeNil)
@@ -146,7 +147,7 @@ func TestRunTls(t *testing.T) {
 				Oneshot:            true,
 				Server:             "localhost:8192",
 				ServerNameOverride: "nfd-test-master"}
-			updater, _ := u.NewTopologyUpdater(updaterArgs, "fake-topology-manager-policy")
+			updater, _ := u.NewTopologyUpdater(updaterArgs, resourcemonitor.Args{}, "fake-topology-manager-policy")
 			err := updater.Update(zones)
 			Convey("No error should be returned", func() {
 				So(err, ShouldBeNil)
