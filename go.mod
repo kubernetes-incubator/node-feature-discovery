@@ -4,7 +4,11 @@ go 1.16
 
 require (
 	github.com/fsnotify/fsnotify v1.4.9
+	github.com/ghodss/yaml v1.0.0
 	github.com/golang/protobuf v1.4.3
+	github.com/google/go-cmp v0.5.4
+	github.com/jaypipes/ghw v0.8.0
+	github.com/k8stopologyawareschedwg/noderesourcetopology-api v0.0.9
 	github.com/klauspost/cpuid/v2 v2.0.7
 	github.com/onsi/ginkgo v1.11.0
 	github.com/onsi/gomega v1.7.0
@@ -14,10 +18,12 @@ require (
 	github.com/vektra/errors v0.0.0-20140903201135-c64d83aba85a
 	golang.org/x/net v0.0.0-20210614182718-04defd469f4e
 	google.golang.org/grpc v1.27.1
+	google.golang.org/protobuf v1.25.0
 	k8s.io/api v0.21.2
 	k8s.io/apimachinery v0.21.2
 	k8s.io/client-go v0.21.2
 	k8s.io/klog/v2 v2.8.0
+	k8s.io/kubelet v0.0.0
 	k8s.io/kubernetes v1.21.2
 	sigs.k8s.io/yaml v1.2.0
 )
